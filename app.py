@@ -1,4 +1,6 @@
 import streamlit as st
+import boto3
+from botocore.exceptions import ClientError
 
 # Para poner la imagen como fondo de pantalla
 st.markdown(
@@ -15,47 +17,34 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# Uso markdown para poder cambiar el color de la letra porque con streamlit nativo no puedo hacerlo
 st.markdown("<h1 style='color: black;'> Instancias AWS QA </h1>", unsafe_allow_html=True)
-#st.title("Instancias AWS de QA")
 
-# Se inserta imagen
-#st.image("latinia.jpg", use_column_width=True)
+st.markdown("<h1 style='color: black;'> Inicio de sesión con AWS </h1>", unsafe_allow_html=True)
 
-# CSS personalizado para cambiar color del texto del input
-st.markdown("<p style='color: black;'> ¿Cuál es tu nombre? "
-" </p>", unsafe_allow_html=True)
+# Credenciales de acceso a AWS
+st.markdown("<p style='color: black;'> AWS Access Key ID </p>", unsafe_allow_html=True)
+aws_access_key = st.text_input("", key="access_key")
 
-# Entrada de texto
-nombre = st.text_input("")
+st.markdown("<p style='color: black;'>AWS Secret Access Key </p>", unsafe_allow_html=True)
+aws_secret_key = st.text_input("", type="password", key="secret_key")
 
-# Botón para mostrar saludo
-if st.button("Saludar"):
-    if nombre:
-        #st.markdown(f"<p style='color: orange; font-size: 20px;'>¡Hola, {nombre}!</p>", unsafe_allow_html=True)
-        st.markdown(
-    f"""
-    <div style='
-        background-color: #ffeeba;
-        padding: 10px;
-        border-radius: 5px;
-        color: #856404;
-        font-weight: bold;
-    '>
-        ¡Hola, {nombre}!
-    </div>
-""", unsafe_allow_html=True)
+region = st.selectbox("Región",["eu-west-1"])
 
+if st.button("Iniciar sesión"):
+    if not aws_access_key or not aws_secret_key:
+        st.warning("⚠️ Por favor, completa ambos campos de credenciales.")
     else:
-       # st.warning("Por favor, escribe tu nombre.")
-       st.markdown(
-           f"""
-    <div style='
-        background-color: #ffeeba;
-        padding: 10px;
-        border-radius: 5px;
-        color: #856404;
-        font-weight: bold;
-    '>
-        Por favor, escribe tu nombre.
-    </div>
-       """, unsafe_allow_html=True)
+        try:
+            # Conectarse a AWS STS para validar las credenciales
+            sts = boto3.client(
+                "sts",
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret_key,
+                region_name=region
+            )
+            identity = sts.get_caller_identity()
+            arn = identity.get("Arn")
+            st.success(f"✅ Credenciales válidas.\nConectado como: `{arn}`")
+        except ClientError as e:
+            st.error(f"❌ Error de autenticación: {e.response['Error']['Message']}")
