@@ -7,7 +7,7 @@ st.markdown(
     """
     <style>
     .stApp {
-        background-image: url(https://i.ytimg.com/vi/m2AuliEdbQg/maxresdefault.jpg);
+        background-image: url(https://assets.aboutamazon.com/dims4/default/dd7f211/2147483647/strip/false/crop/960x720+0+0/resize/960x720!/quality/90/?url=https%3A%2F%2Famazon-blogs-brightspot.s3.amazonaws.com%2F66%2Ff3%2Fcb7e8e804a1f991c96593cf465e1%2Faws-logo-white-on-si.jpg);
         background-size: cover;
         background-repeat: no-repeat;
         background-attachment: fixed;
@@ -17,19 +17,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Uso markdown para poder cambiar el color de la letra porque con streamlit nativo no puedo hacerlo
-st.markdown("<h1 style='color: black;'> Instancias AWS QA </h1>", unsafe_allow_html=True)
 
-st.markdown("<h1 style='color: black;'> Inicio de sesión con AWS </h1>", unsafe_allow_html=True)
 
+#st.markdown("<h1 style='color: black;'> Inicio de sesión con AWS </h1>", unsafe_allow_html=True)
+st.title("Inicio de sesión con AWS")
 # Credenciales de acceso a AWS
-st.markdown("<p style='color: black;'> AWS Access Key ID </p>", unsafe_allow_html=True)
-aws_access_key = st.text_input("", key="access_key")
 
-st.markdown("<p style='color: black;'>AWS Secret Access Key </p>", unsafe_allow_html=True)
-aws_secret_key = st.text_input("", type="password", key="secret_key")
+aws_access_key = st.text_input("AWS Access Key ID", key="access_key")
+aws_secret_key = st.text_input("AWS Secret Access Key", type="password", key="secret_key")
 
-region = st.selectbox("Región",["eu-west-1"])
+region = st.selectbox("Región",["eu-west-1","us-east-1"])
 
 if st.button("Iniciar sesión"):
     if not aws_access_key or not aws_secret_key:
@@ -48,3 +45,9 @@ if st.button("Iniciar sesión"):
             st.success(f"✅ Credenciales válidas.\nConectado como: `{arn}`")
         except ClientError as e:
             st.error(f"❌ Error de autenticación: {e.response['Error']['Message']}")
+
+
+if st.button("Cerrar sesión"):
+    for key in ["authenticated", "access_key", "secret_key", "region"]:
+        st.session_state.pop(key, None)
+    st.experimental_rerun()
