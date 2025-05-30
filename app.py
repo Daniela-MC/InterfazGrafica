@@ -1,6 +1,5 @@
-import streamlit as st
 import boto3
-from botocore.exceptions import ClientError
+import streamlit as st
 
 # Para poner la imagen como fondo de pantalla
 st.markdown(
@@ -17,37 +16,68 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+#st.set_page_config(page_title="AWS EC2 Viewer", layout="centered")
 
+# Paso 1: Mostrar formulario si no estamos autenticados
+if "authenticated" not in st.session_state:
+    st.title("Conexión a AWS")
 
-#st.markdown("<h1 style='color: black;'> Inicio de sesión con AWS </h1>", unsafe_allow_html=True)
-st.title("Inicio de sesión con AWS")
-# Credenciales de acceso a AWS
+    access_key = st.text_input("Access Key ID")
+    secret_key = st.text_input("Secret Access Key", type="password")
+    region = st.selectbox("Región", ["us-east-1", "eu-west-1", "us-east-2"])
 
-aws_access_key = st.text_input("AWS Access Key ID", key="access_key")
-aws_secret_key = st.text_input("AWS Secret Access Key", type="password", key="secret_key")
-
-region = st.selectbox("Región",["eu-west-1","us-east-1"])
-
-if st.button("Iniciar sesión"):
-    if not aws_access_key or not aws_secret_key:
-        st.warning("⚠️ Por favor, completa ambos campos de credenciales.")
-    else:
+    if st.button("Conectar"):
         try:
-            # Conectarse a AWS STS para validar las credenciales
-            sts = boto3.client(
-                "sts",
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_key,
+            # Intentar conexión para validar credenciales
+            ec2 = boto3.client(
+                "ec2",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
                 region_name=region
             )
-            identity = sts.get_caller_identity()
-            arn = identity.get("Arn")
-            st.success(f"✅ Credenciales válidas.\nConectado como: `{arn}`")
-        except ClientError as e:
-            st.error(f"❌ Error de autenticación: {e.response['Error']['Message']}")
+            ec2.describe_instances()  # llamada para validar
 
+            # Guardar en la sesión
+            st.session_state.authenticated = True
+            st.session_state.access_key = access_key
+            st.session_state.secret_key = secret_key
+            st.session_state.region = region
 
-if st.button("Cerrar sesión"):
-    for key in ["authenticated", "access_key", "secret_key", "region"]:
-        st.session_state.pop(key, None)
-    st.experimental_rerun()
+            st.experimental_rerun()  # recargar página
+        except Exception as e:
+            st.error(f"Error de autenticación: {e}")
+
+# Paso 2: Mostrar tabla si ya estamos autenticados
+else:
+    st.title("Instancias EC2")
+
+    ec2 = boto3.client(
+        "ec2",
+        aws_access_key_id=st.session_state.access_key,
+        aws_secret_access_key=st.session_state.secret_key,
+        region_name=st.session_state.region
+    )
+
+    response = ec2.describe_instances()
+
+    data = []
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            data.append({
+                "ID": instance["InstanceId"],
+                "Estado": instance["State"]["Name"],
+                "Tipo": instance["InstanceType"],
+                "Zona": instance["Placement"]["AvailabilityZone"],
+                "Lanzada": instance["LaunchTime"].strftime("%Y-%m-%d %H:%M:%S")
+            })
+
+    if data:
+        st.table(data)
+    else:
+        st.info("No se encontraron instancias.")
+
+    # 🔴 Botón de cierre de sesión
+    if st.button("Cerrar sesión"):
+        for key in ["authenticated", "access_key", "secret_key", "region"]:
+            st.session_state.pop(key, None)
+        st.experimental_rerun()
