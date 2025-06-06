@@ -1,4 +1,10 @@
-> pip install customtkinter
+Librerias de Python:
 
+> pip install customtkinter
 > pip install pillow
+
+IDE:
+> pyCharm
+
+
 
