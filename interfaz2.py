@@ -1,5 +1,6 @@
 import customtkinter
 import requests
+from tkinter import PhotoImage
 from PIL import Image
 from customtkinter import CTkImage
 
@@ -86,28 +87,65 @@ def mostrar_saludo():
     if not nombre or not contrasena:
         return
 
-    for widget in [tituloPrincipal, titulo, user, boton_ingresar, password]:
-        widget.destroy()
-
-    saludo_label = customtkinter.CTkLabel(
-        app,
-        text=f"¡Hola, {nombre}! Bienvenid@ 🎉",
-        font=("Segoe UI", 26, "bold"),
-        text_color="black",
-        bg_color='white'
-    )
-    saludo_label.pack(pady=(30, 30))
-
     try:
         url = "https://awstools.corp.latiniaservices.com/api/v1/instance"
         response = requests.get(url, auth=(nombre, contrasena))
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        print(f"Error: {e}")
-        data = []
 
-    mostrar_tabla_instancias(data)
+        if response.status_code == 200:
+            #Ocultar formulario login
+            for widget in [tituloPrincipal, titulo, user, boton_ingresar, password]:
+                widget.destroy()
+
+            # Mostrar saludo
+            saludo_label = customtkinter.CTkLabel(
+                app,
+                text=f"¡Hola, {nombre}! Bienvenid@ 🎉",
+                font=("Segoe UI", 26, "bold"),
+                text_color="black",
+                bg_color='white'
+            )
+            saludo_label.pack(pady=(30, 30))
+
+            data = response.json()
+            mostrar_tabla_instancias(data)
+
+        elif response.status_code == 401:
+            mostrar_mensaje_login_error("🤔 ¡IMPOSTOR! 🫣")
+            mostrar_mensaje_login_error("❌ Credenciales incorrectas. Intenta nuevamente.")
+
+
+        else:
+            mostrar_mensaje_login_error(f"⚠️ Error al obtener datos. Código: {response.status_code}")
+
+    except requests.exceptions.RequestException as e:
+        mostrar_mensaje_login_error(f"🔌 Error de conexión: {e}")
+
+def mostrar_mensaje_login_error(mensaje):
+    # Mostrar mensaje de error temporal encima del formulario
+    error_label = customtkinter.CTkLabel(
+        app,
+        text=mensaje,
+        font=("Segoe UI", 20, "bold"),
+        text_color="red",
+        bg_color="white"
+    )
+    error_label.pack(pady=(10, 5))
+
+    # Eliminar mensaje después de unos segundos (opcional)
+    app.after(5000, error_label.destroy)
+
+
+def mostrar_error(mensaje):
+    global saludo_label
+    if saludo_label:
+        saludo_label.destroy()
+
+    resultado = customtkinter.CTkTextbox(
+        app, width=800, height=400, font=("Courier", 14),
+        text_color="black", fg_color="white"
+    )
+    resultado.insert("1.0", mensaje)
+    resultado.pack(expand=True, fill="both", padx=20, pady=20)
 
 def recargar_pagina():
     if not nombre_usuario or not contrasena_usuario:
@@ -125,6 +163,11 @@ def recargar_pagina():
 # Ventana principal
 app = customtkinter.CTk()
 app.title("QA Systems Manager")
+
+#Cambiar el icono
+app.iconbitmap("icono.ico")
+
+
 app.attributes("-fullscreen", True)
 
 ancho = app.winfo_screenwidth()
@@ -160,5 +203,6 @@ boton_recargar = customtkinter.CTkButton(app, text="🔄", command=recargar_pagi
 boton_recargar.place(relx=1.0, rely=0.0, anchor="ne", x=-80, y=20)
 
 app.bind("<Escape>", lambda event: app.destroy())
+
 
 app.mainloop()
