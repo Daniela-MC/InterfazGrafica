@@ -34,28 +34,38 @@ def mostrar_tabla_instancias(data):
     contenedor_tabla = customtkinter.CTkFrame(app, fg_color="#CCCCCC")
     contenedor_tabla.pack(padx=20, pady=20, fill="both", expand=True)
 
-    encabezados = ["ID", "Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "Notas"]
+    #encabezados = ["ID", "Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "Notas"]
+    encabezados = ["Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "Notas"]
 
     tabla_frame = customtkinter.CTkScrollableFrame(contenedor_tabla, fg_color="#CCCCCC")
     tabla_frame.pack(fill="both", expand=True)
 
+    # Configurar peso (proporción) solo para columnas que no son 4 o 5
     for col in range(len(encabezados)):
-        tabla_frame.grid_columnconfigure(col, weight=1, uniform="col")
+        if col not in [0, 1, 2, 3, 4]:
+            tabla_frame.grid_columnconfigure(col, weight=2, uniform="col")
 
+    # Crear encabezados
     for col, nombre_columna in enumerate(encabezados):
-        encabezado = customtkinter.CTkLabel(
-            tabla_frame,
-            text=nombre_columna,
-            font=("Segoe UI", 14, "bold"),
-            text_color="black",
-            fg_color="white",
-            corner_radius=0
-        )
+        label_kwargs = {
+            "text": nombre_columna,
+            "font": ("Segoe UI", 14, "bold"),
+            "text_color": "black",
+            "fg_color": "white",
+            "corner_radius": 0
+        }
+        if col in [1, 2, 3, 4]:
+            label_kwargs["width"] = 100  # Ancho fijo
+        elif col == 0:
+            label_kwargs["width"] = 120
+
+        encabezado = customtkinter.CTkLabel(tabla_frame, **label_kwargs)
         encabezado.grid(row=0, column=col, sticky="nsew", padx=1, pady=1)
 
+    # Crear filas de datos
     for fila, instancia in enumerate(data, start=1):
         valores = [
-            instancia.get("id", "-"),
+            #instancia.get("id", "-"),
             instancia.get("name", "-"),
             instancia.get("status", {}).get("status", "-"),
             extraer_valor_tag(instancia.get("tags", []), "UsedBy"),
@@ -65,21 +75,40 @@ def mostrar_tabla_instancias(data):
         ]
 
         for col, valor in enumerate(valores):
-            if col == 2:
+            if col == 1:
                 estado = valor.upper()
                 color = "green" if "ON" in estado else "red" if "OFF" in estado else "black"
             else:
                 color = "black"
 
-            celda = customtkinter.CTkLabel(
-                tabla_frame,
-                text=valor,
-                font=("Segoe UI", 13),
-                text_color=color,
-                fg_color="white",
-                corner_radius=0
-            )
+            label_kwargs = {
+                "text": valor,
+                "font": ("Segoe UI", 13),
+                "text_color": color,
+                "fg_color": "white",
+                "corner_radius": 0
+            }
+            if col in [1, 2, 3, 4]:
+                label_kwargs["width"] = 100  # Ancho fijo
+            elif col == 0:
+                label_kwargs["width"] = 120
+
+            celda = customtkinter.CTkLabel(tabla_frame, **label_kwargs)
             celda.grid(row=fila, column=col, sticky="nsew", padx=1, pady=1)
+
+
+def mostrar_popup_contenido(texto, titulo="Detalle"):
+    ventana = customtkinter.CTkToplevel(app)
+    ventana.title(titulo)
+    ventana.geometry("400x200")
+
+    texto_box = customtkinter.CTkTextbox(ventana, wrap="word")
+    texto_box.insert("1.0", texto)
+    texto_box.configure(state="disabled")  # Solo lectura
+    texto_box.pack(expand=True, fill="both", padx=10, pady=10)
+
+    cerrar_btn = customtkinter.CTkButton(ventana, text="Cerrar", command=ventana.destroy)
+    cerrar_btn.pack(pady=10)
 
 def mostrar_saludo():
     global saludo_label
