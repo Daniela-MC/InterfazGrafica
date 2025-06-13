@@ -1,6 +1,5 @@
 import customtkinter
 import requests
-from tkinter import PhotoImage
 from PIL import Image
 from customtkinter import CTkImage
 
@@ -34,15 +33,15 @@ def mostrar_tabla_instancias(data):
     contenedor_tabla = customtkinter.CTkFrame(app, fg_color="#CCCCCC")
     contenedor_tabla.pack(padx=20, pady=20, fill="both", expand=True)
 
-    #encabezados = ["ID", "Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "Notas"]
-    encabezados = ["Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "Notas"]
+    
+    encabezados = ["Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "OperGroup", "Notas"]
 
     tabla_frame = customtkinter.CTkScrollableFrame(contenedor_tabla, fg_color="#CCCCCC")
     tabla_frame.pack(fill="both", expand=True)
 
     # Configurar peso (proporción) solo para columnas que no son 4 o 5
     for col in range(len(encabezados)):
-        if col not in [0, 1, 2, 3, 4]:
+        if col not in [0, 1, 2, 3, 4, 5]:
             tabla_frame.grid_columnconfigure(col, weight=2, uniform="col")
 
     # Crear encabezados
@@ -54,7 +53,7 @@ def mostrar_tabla_instancias(data):
             "fg_color": "white",
             "corner_radius": 0
         }
-        if col in [1, 2, 3, 4]:
+        if col in [1, 2, 3, 4, 5]:
             label_kwargs["width"] = 100  # Ancho fijo
         elif col == 0:
             label_kwargs["width"] = 120
@@ -71,7 +70,9 @@ def mostrar_tabla_instancias(data):
             extraer_valor_tag(instancia.get("tags", []), "UsedBy"),
             extraer_valor_tag(instancia.get("tags", []), "PowerOnTime"),
             extraer_valor_tag(instancia.get("tags", []), "PowerOffTime"),
+            extraer_valor_tag(instancia.get("tags", []), "OperGroup"),
             extraer_valor_tag(instancia.get("tags", []), "Notes")
+
         ]
 
         for col, valor in enumerate(valores):
@@ -88,7 +89,7 @@ def mostrar_tabla_instancias(data):
                 "fg_color": "white",
                 "corner_radius": 0
             }
-            if col in [1, 2, 3, 4]:
+            if col in [1, 2, 3, 4, 5]:
                 label_kwargs["width"] = 100  # Ancho fijo
             elif col == 0:
                 label_kwargs["width"] = 120
@@ -96,19 +97,6 @@ def mostrar_tabla_instancias(data):
             celda = customtkinter.CTkLabel(tabla_frame, **label_kwargs)
             celda.grid(row=fila, column=col, sticky="nsew", padx=1, pady=1)
 
-
-def mostrar_popup_contenido(texto, titulo="Detalle"):
-    ventana = customtkinter.CTkToplevel(app)
-    ventana.title(titulo)
-    ventana.geometry("400x200")
-
-    texto_box = customtkinter.CTkTextbox(ventana, wrap="word")
-    texto_box.insert("1.0", texto)
-    texto_box.configure(state="disabled")  # Solo lectura
-    texto_box.pack(expand=True, fill="both", padx=10, pady=10)
-
-    cerrar_btn = customtkinter.CTkButton(ventana, text="Cerrar", command=ventana.destroy)
-    cerrar_btn.pack(pady=10)
 
 def mostrar_saludo():
     global saludo_label
@@ -133,7 +121,7 @@ def mostrar_saludo():
                 text_color="black",
                 bg_color='white'
             )
-            saludo_label.pack(pady=(30, 30))
+            saludo_label.pack(pady=(40, 40))
 
             data = response.json()
             mostrar_tabla_instancias(data)
@@ -207,8 +195,8 @@ fondo = CTkImage(light_image=imagen, dark_image=imagen, size=(ancho, alto))
 label_fondo = customtkinter.CTkLabel(app, image=fondo, text="")
 label_fondo.place(x=0, y=0, relwidth=1, relheight=1)
 
-tituloPrincipal = customtkinter.CTkLabel(app, text="QA Systems Manager", font=("Segoe UI", 60, "bold"), text_color="black", bg_color='white')
-tituloPrincipal.pack(pady=(30, 30))
+tituloPrincipal = customtkinter.CTkLabel(app, text="QA Systems Manager", font=("Segoe UI", 100, "bold"), text_color="black", bg_color='white')
+tituloPrincipal.pack(pady=(100, 100))
 
 titulo = customtkinter.CTkLabel(app, text="Inicia sesión", font=("Segoe UI", 32, "bold"), text_color="black",  bg_color='white')
 titulo.pack(pady=(20, 20))
