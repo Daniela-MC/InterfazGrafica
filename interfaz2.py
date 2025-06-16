@@ -24,6 +24,29 @@ def extraer_valor_tag(tags, clave):
             return tag["value"]
     return "-"
 
+def obtener_snapshots(instance_id, nombre, contrasena):
+    try:
+        url = f"https://awstools.corp.latiniaservices.com/api/v1/instance/{instance_id}/snapshot"
+        response = requests.get(url, auth=(nombre, contrasena))
+
+      #  print(f"\n[DEBUG] Instance ID: {instance_id}")
+      #  print(f"[DEBUG] Status Code: {response.status_code}")
+      #  print(f"[DEBUG] Response Text: {response.text}\n")
+
+        if response.status_code == 200:
+            snapshots = response.json()  # Aquí asumimos que es una lista
+            if isinstance(snapshots, list):
+                nombres = [s.get("name", "-") for s in snapshots]
+                return ", ".join(nombres) if nombres else "-"
+            else:
+                return "-"
+        else:
+            return "-"
+    except Exception as e:
+        print(f"[ERROR] Excepción al obtener snapshots para {instance_id}: {e}")
+        return "-"
+
+
 def mostrar_tabla_instancias(data):
     global contenedor_tabla
 
@@ -33,18 +56,15 @@ def mostrar_tabla_instancias(data):
     contenedor_tabla = customtkinter.CTkFrame(app, fg_color="#CCCCCC")
     contenedor_tabla.pack(padx=20, pady=20, fill="both", expand=True)
 
-    
-    encabezados = ["Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "OperGroup", "Notas"]
+    encabezados = ["Nombre", "Estado", "Usado por", "PowerON", "PowerOFF", "OperGroup", "Notas", "Snapshot"]
 
     tabla_frame = customtkinter.CTkScrollableFrame(contenedor_tabla, fg_color="#CCCCCC")
     tabla_frame.pack(fill="both", expand=True)
 
-    # Configurar peso (proporción) solo para columnas que no son 4 o 5
     for col in range(len(encabezados)):
-        if col not in [0, 1, 2, 3, 4, 5]:
+        if col not in [0, 1, 2, 3, 4, 5, 7]:
             tabla_frame.grid_columnconfigure(col, weight=2, uniform="col")
 
-    # Crear encabezados
     for col, nombre_columna in enumerate(encabezados):
         label_kwargs = {
             "text": nombre_columna,
@@ -53,26 +73,27 @@ def mostrar_tabla_instancias(data):
             "fg_color": "white",
             "corner_radius": 0
         }
-        if col in [1, 2, 3, 4, 5]:
-            label_kwargs["width"] = 100  # Ancho fijo
+        if col in [1, 2, 3, 4, 5, 7]:
+            label_kwargs["width"] = 100
         elif col == 0:
             label_kwargs["width"] = 120
 
         encabezado = customtkinter.CTkLabel(tabla_frame, **label_kwargs)
         encabezado.grid(row=0, column=col, sticky="nsew", padx=1, pady=1)
 
-    # Crear filas de datos
     for fila, instancia in enumerate(data, start=1):
+        instance_id = instancia.get("id", "-")
+        snapshots = obtener_snapshots(instance_id, nombre_usuario, contrasena_usuario)
+
         valores = [
-            #instancia.get("id", "-"),
             instancia.get("name", "-"),
             instancia.get("status", {}).get("status", "-"),
             extraer_valor_tag(instancia.get("tags", []), "UsedBy"),
             extraer_valor_tag(instancia.get("tags", []), "PowerOnTime"),
             extraer_valor_tag(instancia.get("tags", []), "PowerOffTime"),
             extraer_valor_tag(instancia.get("tags", []), "OperGroup"),
-            extraer_valor_tag(instancia.get("tags", []), "Notes")
-
+            extraer_valor_tag(instancia.get("tags", []), "Notes"),
+            snapshots
         ]
 
         for col, valor in enumerate(valores):
@@ -89,14 +110,13 @@ def mostrar_tabla_instancias(data):
                 "fg_color": "white",
                 "corner_radius": 0
             }
-            if col in [1, 2, 3, 4, 5]:
-                label_kwargs["width"] = 100  # Ancho fijo
+            if col in [1, 2, 3, 4, 5, 7]:
+                label_kwargs["width"] = 100
             elif col == 0:
                 label_kwargs["width"] = 120
 
             celda = customtkinter.CTkLabel(tabla_frame, **label_kwargs)
             celda.grid(row=fila, column=col, sticky="nsew", padx=1, pady=1)
-
 
 def mostrar_saludo():
     global saludo_label
@@ -109,11 +129,9 @@ def mostrar_saludo():
         response = requests.get(url, auth=(nombre, contrasena))
 
         if response.status_code == 200:
-            #Ocultar formulario login
             for widget in [tituloPrincipal, titulo, user, boton_ingresar, password]:
                 widget.destroy()
 
-            # Mostrar saludo
             saludo_label = customtkinter.CTkLabel(
                 app,
                 text=f"¡Hola, {nombre}! Bienvenid@ 🎉",
@@ -129,8 +147,6 @@ def mostrar_saludo():
         elif response.status_code == 401:
             mostrar_mensaje_login_error("🤔 ¡IMPOSTOR! 🫣")
             mostrar_mensaje_login_error("❌ Credenciales incorrectas. Intenta nuevamente.")
-
-
         else:
             mostrar_mensaje_login_error(f"⚠️ Error al obtener datos. Código: {response.status_code}")
 
@@ -138,7 +154,6 @@ def mostrar_saludo():
         mostrar_mensaje_login_error(f"🔌 Error de conexión: {e}")
 
 def mostrar_mensaje_login_error(mensaje):
-    # Mostrar mensaje de error temporal encima del formulario
     error_label = customtkinter.CTkLabel(
         app,
         text=mensaje,
@@ -147,10 +162,7 @@ def mostrar_mensaje_login_error(mensaje):
         bg_color="white"
     )
     error_label.pack(pady=(10, 5))
-
-    # Eliminar mensaje después de unos segundos (opcional)
     app.after(5000, error_label.destroy)
-
 
 def mostrar_error(mensaje):
     global saludo_label
@@ -177,14 +189,9 @@ def recargar_pagina():
     except Exception as e:
         print(f"Error al recargar: {e}")
 
-# Ventana principal
 app = customtkinter.CTk()
 app.title("QA Systems Manager")
-
-#Cambiar el icono
 app.iconbitmap("icono.ico")
-
-
 app.attributes("-fullscreen", True)
 
 ancho = app.winfo_screenwidth()
@@ -220,6 +227,5 @@ boton_recargar = customtkinter.CTkButton(app, text="🔄", command=recargar_pagi
 boton_recargar.place(relx=1.0, rely=0.0, anchor="ne", x=-80, y=20)
 
 app.bind("<Escape>", lambda event: app.destroy())
-
 
 app.mainloop()
