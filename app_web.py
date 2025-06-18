@@ -28,6 +28,7 @@ def index():
     if request.method == "POST":
         nombre = request.form.get("user", "").strip()
         contrasena = request.form.get("password", "").strip()
+
         if not nombre or not contrasena:
             return render_template_string(PAGINA_LOGIN, error=False)
 
@@ -66,17 +67,16 @@ def generar_tabla(data, nombre, contrasena):
 
         fila = "<tr>" + "".join(
             f'<td class="center" style="color:{estado_color}">{val}</td>' if i == 1 else
-            f'<td class="center">{val}</td>' if i in [2, 3, 4, 5] else
+            f'<td class="center">{val}</td>' if i in [0, 2, 3, 4, 5] else
             f'<td>{val}</td>'
             for i, val in enumerate(valores)
-        ) + '<td><i class="fas fa-search action-icon"></i></td></tr>'
+        ) + "</tr>"
         filas += fila
     return filas
 
-# ================================
-# PAGINA_LOGIN (con fondo, íconos, y mensaje de error si aplica)
-# ================================
-
+# ==========================
+# Página de LOGIN
+# ==========================
 PAGINA_LOGIN = """
 <!DOCTYPE html>
 <html>
@@ -211,8 +211,8 @@ PAGINA_LOGIN = """
         <div class="login-box">
             <h2>Iniciar sesión</h2>
 
-            {% if error %}
-                <img src="https://www.shutterstock.com/shutterstock/photos/2089619815/display_1500/stock-vector-spy-in-a-raincoat-hat-and-black-glasses-covered-face-2089619815.jpg" alt="intruder" class="error-image">
+            {% if error is defined and error %}
+                <img src="https://cdn-icons-png.flaticon.com/512/3061/3061820.png" alt="intruder" class="error-image">
                 <div class="error-message">Credenciales incorrectas... ¿Intruso?</div>
             {% endif %}
 
@@ -248,7 +248,10 @@ PAGINA_LOGIN = """
 </html>
 """
 
-# Página de Resultados con Tabla
+# ==========================
+# Página de RESULTADOS
+# ==========================
+
 PAGINA_RESULTADO = """
 <!DOCTYPE html>
 <html>
@@ -261,79 +264,85 @@ PAGINA_RESULTADO = """
             background: #f8f9fa;
             padding: 20px;
         }
-
+    
         h1 {
             text-align: center;
             margin-bottom: 30px;
         }
-
+    
         table {
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 10px;
+            border-collapse: collapse;
+            table-layout: fixed;
         }
-
-        th {
+    
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
             background-color: #dfe6f3;
             color: #2c3e50;
-            text-align: center;
             padding: 12px;
-            border-radius: 10px 10px 0 0;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 2px solid #ccc;
         }
-
-        td {
+    
+        tbody td {
             background-color: #fff;
             padding: 12px;
             color: #333;
             border-bottom: 1px solid #e6e6e6;
+            word-wrap: break-word;
         }
-
+    
         td.center {
             text-align: center;
         }
-
+    
         tr:hover td {
             background-color: #f1f3f6;
         }
-
-        td:last-child {
-            text-align: center;
+    
+        /* ⬇️ Tu nuevo bloque va aquí */
+        thead th:nth-child(3),
+        tbody td:nth-child(3) {
+            width: 100px;
         }
-
-        .action-icon {
-            background-color: #0056b3;
-            color: white;
-            padding: 8px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.3s;
+    
+        thead th:nth-child(4),
+        tbody td:nth-child(4) {
+            width: 90px;
         }
-
-        .action-icon:hover {
-            background-color: #003f7f;
+    
+        thead th:nth-child(5),
+        tbody td:nth-child(5) {
+            width: 90px;
         }
     </style>
 </head>
 <body>
     <h1>Bienvenido {{ nombre }} 🎉</h1>
     <table>
-        <tr>
-            <th>Nombre</th>
-            <th>Estado</th>
-            <th>Usado por</th>
-            <th>PowerON</th>
-            <th>PowerOFF</th>
-            <th>OperGroup</th>
-            <th>Notas</th>
-            <th>Snapshot</th>
-            <th>Acción</th>
-        </tr>
-        {{ tabla|safe }}
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Estado</th>
+                <th>Usado por</th>
+                <th>PowerON</th>
+                <th>PowerOFF</th>
+                <th>OperGroup</th>
+                <th>Notas</th>
+                <th>Snapshot</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ tabla|safe }}
+        </tbody>
     </table>
 </body>
 </html>
 """
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
