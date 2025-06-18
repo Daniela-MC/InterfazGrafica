@@ -31,7 +31,8 @@ def obtener_snapshots(instance_id, nombre, contrasena):
 
       #  print(f"\n[DEBUG] Instance ID: {instance_id}")
       #  print(f"[DEBUG] Status Code: {response.status_code}")
-      #  print(f"[DEBUG] Response Text: {response.text}\n")
+      #
+        print(f"[DEBUG] Response Text: {response.text}\n")
 
         if response.status_code == 200:
             snapshots = response.json()  # Aquí asumimos que es una lista
