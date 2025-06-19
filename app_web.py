@@ -48,14 +48,23 @@ def index():
 
     return render_template_string(PAGINA_LOGIN, error=False)
 
+def badge(valor):
+    try:
+        return f'<span class="badge">{valor}</span>' if int(valor) > 0 else valor
+    except:
+        return valor
+
 def generar_tabla(data, nombre, contrasena):
     filas = ""
+
     for instancia in data:
         instance_id = instancia.get("id", "-")
         snapshots = obtener_snapshots(instance_id, nombre, contrasena)
+        estado_raw = instancia.get("status", {}).get("status", "-")
+        estado = "ON" if estado_raw == "POWERED_ON" else "OFF" if estado_raw == "POWERED_OFF" else estado_raw
         valores = [
             instancia.get("name", "-"),
-            instancia.get("status", {}).get("status", "-"),
+            estado,
             extraer_valor_tag(instancia.get("tags", []), "UsedBy"),
             extraer_valor_tag(instancia.get("tags", []), "PowerOnTime"),
             extraer_valor_tag(instancia.get("tags", []), "PowerOffTime"),
@@ -67,7 +76,8 @@ def generar_tabla(data, nombre, contrasena):
 
         fila = "<tr>" + "".join(
             f'<td class="center" style="color:{estado_color}">{val}</td>' if i == 1 else
-            f'<td class="center">{val}</td>' if i in [0, 2, 3, 4, 5] else
+            f'<td class="center">{badge(val)}</td>' if i in [3, 4] else
+            f'<td class="center">{val}</td>' if i in [2, 5] else
             f'<td>{val}</td>'
             for i, val in enumerate(valores)
         ) + "</tr>"
@@ -212,7 +222,7 @@ PAGINA_LOGIN = """
             <h2>Iniciar sesión</h2>
 
             {% if error is defined and error %}
-                <img src="https://cdn-icons-png.flaticon.com/512/3061/3061820.png" alt="intruder" class="error-image">
+                <img src="https://cdn3d.iconscout.com/3d/premium/thumb/acceso-de-hacker-14622078-11815532.png?f=webp" alt="intruder" class="error-image">
                 <div class="error-message">Credenciales incorrectas... ¿Intruso?</div>
             {% endif %}
 
@@ -258,13 +268,38 @@ PAGINA_RESULTADO = """
 <head>
     <title>QA Systems Manager</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <style>
+        <style>
         body {
             font-family: 'Segoe UI', sans-serif;
             background: #f8f9fa;
-            padding: 20px;
+            padding: 30px;
         }
-    
+        
+        .header {
+            position: relative;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .banner {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        
+        .banner-text {
+            position: absolute;
+            top: 50%;
+            left: 80%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 22px;
+            font-weight: 500;
+            font-family: 'Segoe UI', sans-serif;
+            white-space: nowrap;
+        }
+
         h1 {
             text-align: center;
             margin-bottom: 30px;
@@ -277,22 +312,36 @@ PAGINA_RESULTADO = """
         }
     
         thead th {
+            background-color: #dbe4f0; /* gris azulado */
+            color: #1a237e; /* azul fuerte */
+            text-align: center;
+            padding: 12px;
+            font-weight: 600;
+            border-bottom: 2px solid #ccc;
             position: sticky;
             top: 0;
-            z-index: 2;
-            background-color: #dfe6f3;
-            color: #2c3e50;
-            padding: 12px;
-            text-align: center;
-            font-weight: bold;
-            border-bottom: 2px solid #ccc;
+            z-index: 1;
+            transition: color 0.3s ease;
         }
     
-        tbody td {
-            background-color: #fff;
+        thead th:hover {
+            color: #f57c00; /* naranja al pasar el mouse */
+            cursor: default;
+        }
+    
+        tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    
+        tbody tr:nth-child(odd) {
+            background-color: #ffffff;
+        }
+    
+        td {
             padding: 12px;
+            text-align: center;
             color: #333;
-            border-bottom: 1px solid #e6e6e6;
+            border-bottom: 1px solid #eee;
             word-wrap: break-word;
         }
     
@@ -300,29 +349,36 @@ PAGINA_RESULTADO = """
             text-align: center;
         }
     
-        tr:hover td {
-            background-color: #f1f3f6;
-        }
-    
-        /* ⬇️ Tu nuevo bloque va aquí */
+        /* Ancho reducido para columnas específicas */
+        thead th:nth-child(2),
+        tbody td:nth-child(2) { width: 80px; }
+        
         thead th:nth-child(3),
-        tbody td:nth-child(3) {
-            width: 100px;
-        }
+        tbody td:nth-child(3) { width: 100px; }
     
         thead th:nth-child(4),
-        tbody td:nth-child(4) {
-            width: 90px;
-        }
+        tbody td:nth-child(4) { width: 90px; }
     
         thead th:nth-child(5),
-        tbody td:nth-child(5) {
-            width: 90px;
+        tbody td:nth-child(5) { width: 90px; }
+    
+        /* Badge para valores destacados */
+        .badge {
+            background-color: orange;
+            color: white;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 6px;
+            display: inline-block;
+            min-width: 28px;
         }
     </style>
 </head>
 <body>
-    <h1>Bienvenido {{ nombre }} 🎉</h1>
+    <div class="header">
+        <img src="/static/headerLatinia.png" alt="LATINIA System Manager QA" class="banner">
+        <div class="banner-text">Bienvenido {{ nombre }} 🎉</div>
+    </div>
     <table>
         <thead>
             <tr>
