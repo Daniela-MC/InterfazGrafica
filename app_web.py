@@ -315,12 +315,33 @@ PAGINA_RESULTADO = """
         .banner-text {
             position: absolute;
             top: 50%;
-            left: 90%;
-            transform: translate(-50%, -50%);
+            right: 30px;
+            transform: translateY(-50%);
             color: white;
             font-size: 22px;
             font-weight: 500;
+            font-family: 'Segoe UI', sans-serif;
             white-space: nowrap;
+        
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .avatar-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid white;
+        }
+        
+        .avatar-menu-container:hover .dropdown-content {
+            display: block;
+        }
+        
+        .dropdown-content a:hover {
+            background-color: #f0f0f0;
         }
 
         .status-on {
@@ -419,21 +440,31 @@ PAGINA_RESULTADO = """
         }
 
         .lupa {
-            color: #2196f3;
+            font-size: 22px;
+            color: #1a237e;
             cursor: pointer;
             transition: color 0.3s ease;
         }
 
         .lupa:hover {
-            color: orange;
+            color: #f57c00;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <img src="/static/headerLatinia.png" alt="LATINIA System Manager QA" class="banner">
-        <div class="banner-text">Welcome {{ nombre }} 🎉</div>
+    <img src="/static/headerLatinia.png" alt="LATINIA System Manager QA" class="banner">
+    <div class="banner-text">
+        Welcome {{ nombre }}
+        <div class="avatar-menu-container" style="position: relative; display: inline-block;">
+            <img src="https://preview.redd.it/msn-avatars-of-all-colors-v0-h70w8hxd5uha1.png?width=640&crop=smart&auto=webp&s=746b504acc441e9828a6fca05bcd9ad59ac7d210" 
+                 alt="avatar" class="avatar-icon" id="avatarBtn" style="cursor:pointer;">
+            <div id="avatarDropdown" class="dropdown-content" style="display:none; position: absolute; right: 0; background: white; border: 1px solid #ccc; border-radius: 6px; min-width: 120px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); z-index: 10;">
+                <a href="#" id="logoutBtn" style="display:block; padding: 8px 12px; color: black; text-decoration: none;">Cerrar sesión</a>
+            </div>
+        </div>
     </div>
+</div>
     <table>
         <thead>
             <tr>
@@ -478,6 +509,31 @@ PAGINA_RESULTADO = """
             });
         });
     });
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const avatarBtn = document.getElementById("avatarBtn");
+            const dropdown = document.getElementById("avatarDropdown");
+            const logoutBtn = document.getElementById("logoutBtn");
+    
+            // Alternar menú al hacer clic en el avatar
+            avatarBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+            });
+    
+            // Cerrar menú si se clickea afuera
+            document.addEventListener("click", () => {
+                dropdown.style.display = "none";
+            });
+    
+            // Acción de cerrar sesión
+            logoutBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                // Aquí rediriges a la página de login
+                window.location.href = "/";
+            });
+        });
     </script>
 </body>
 </html>
