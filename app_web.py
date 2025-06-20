@@ -1,8 +1,12 @@
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, jsonify
 import requests
+import json
 
 app = Flask(__name__)
 
+# ===========================
+# UTILIDADES
+# ===========================
 def extraer_valor_tag(tags, clave):
     for tag in tags:
         if tag["key"] == clave:
@@ -16,13 +20,60 @@ def obtener_snapshots(instance_id, nombre, contrasena):
         if response.status_code == 200:
             snapshots = response.json()
             if isinstance(snapshots, list):
-                nombres = [s.get("name", "-") for s in snapshots]
-                return ", ".join(nombres) if nombres else "-"
-        return "-"
+                return [
+                    {
+                        "name": s.get("name", "-"),
+                        "description": s.get("description", "Sin descripción")
+                    }
+                    for s in snapshots
+                ]
+        return []
     except Exception as e:
         print(f"[ERROR] Snapshot error: {e}")
-        return "-"
+        return []
 
+def badge(valor):
+    try:
+        return f'<span class="badge">{valor}</span>' if int(valor) > 0 else valor
+    except:
+        return valor
+
+def generar_tabla(data):
+    filas = ""
+    for instancia in data:
+        instance_id = instancia.get("id", "-")
+        safe_id = instance_id.replace("-", "")
+
+        estado_raw = instancia.get("status", {}).get("status", "-")
+        estado = "ON" if estado_raw == "POWERED_ON" else "OFF" if estado_raw == "POWERED_OFF" else estado_raw
+
+        lupa_html = f'<i class="fas fa-search lupa" data-id="{safe_id}" data-instance="{instance_id}"></i>'
+
+        valores = [
+            instancia.get("name", "-"),
+            estado,
+            extraer_valor_tag(instancia.get("tags", []), "UsedBy"),
+            extraer_valor_tag(instancia.get("tags", []), "PowerOnTime"),
+            extraer_valor_tag(instancia.get("tags", []), "PowerOffTime"),
+            extraer_valor_tag(instancia.get("tags", []), "OperGroup"),
+            extraer_valor_tag(instancia.get("tags", []), "Notes"),
+            lupa_html
+        ]
+
+        fila = "<tr>" + "".join(
+            f'<td class="center"><span class="status-on">ON</span></td>' if i == 1 and val == "ON" else
+            f'<td class="center"><span class="status-off">OFF</span></td>' if i == 1 and val == "OFF" else
+            f'<td class="center">{badge(val)}</td>' if i in [3, 4] else
+            f'<td class="center">{val}</td>' if i in [2, 5] else
+            f'<td>{val}</td>'
+            for i, val in enumerate(valores)
+        ) + "</tr>"
+        filas += fila
+    return filas
+
+# ===========================
+# RUTAS FLASK
+# ===========================
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -37,8 +88,8 @@ def index():
             response = requests.get(url, auth=(nombre, contrasena))
             if response.status_code == 200:
                 data = response.json()
-                tabla_html = generar_tabla(data, nombre, contrasena)
-                return render_template_string(PAGINA_RESULTADO, nombre=nombre, tabla=tabla_html)
+                tabla_html = generar_tabla(data)
+                return render_template_string(PAGINA_RESULTADO, nombre=nombre, tabla=tabla_html, user=nombre, password=contrasena)
             elif response.status_code == 401:
                 return render_template_string(PAGINA_LOGIN, error=True)
             else:
@@ -48,41 +99,15 @@ def index():
 
     return render_template_string(PAGINA_LOGIN, error=False)
 
-def badge(valor):
-    try:
-        return f'<span class="badge">{valor}</span>' if int(valor) > 0 else valor
-    except:
-        return valor
+@app.route("/snapshots/<instance_id>")
+def snapshots_api(instance_id):
+    user = request.args.get("user")
+    password = request.args.get("password")
+    if not user or not password:
+        return jsonify({"error": "Credenciales faltantes"}), 400
+    snapshots = obtener_snapshots(instance_id, user, password)
+    return jsonify(snapshots)
 
-def generar_tabla(data, nombre, contrasena):
-    filas = ""
-
-    for instancia in data:
-        instance_id = instancia.get("id", "-")
-        snapshots = obtener_snapshots(instance_id, nombre, contrasena)
-        estado_raw = instancia.get("status", {}).get("status", "-")
-        estado = "ON" if estado_raw == "POWERED_ON" else "OFF" if estado_raw == "POWERED_OFF" else estado_raw
-        valores = [
-            instancia.get("name", "-"),
-            estado,
-            extraer_valor_tag(instancia.get("tags", []), "UsedBy"),
-            extraer_valor_tag(instancia.get("tags", []), "PowerOnTime"),
-            extraer_valor_tag(instancia.get("tags", []), "PowerOffTime"),
-            extraer_valor_tag(instancia.get("tags", []), "OperGroup"),
-            extraer_valor_tag(instancia.get("tags", []), "Notes"),
-            snapshots
-        ]
-        estado_color = "green" if "ON" in valores[1].upper() else "red" if "OFF" in valores[1].upper() else "black"
-
-        fila = "<tr>" + "".join(
-            f'<td class="center" style="color:{estado_color}">{val}</td>' if i == 1 else
-            f'<td class="center">{badge(val)}</td>' if i in [3, 4] else
-            f'<td class="center">{val}</td>' if i in [2, 5] else
-            f'<td>{val}</td>'
-            for i, val in enumerate(valores)
-        ) + "</tr>"
-        filas += fila
-    return filas
 
 # ==========================
 # Página de LOGIN
@@ -229,14 +254,14 @@ PAGINA_LOGIN = """
             <form method="post">
                 <div class="input-group">
                     <i class="fas fa-user"></i>
-                    <input type="text" name="user" placeholder="Usuario" required>
+                    <input type="text" name="user" placeholder="User" required>
                 </div>
                 <div class="input-group">
                     <i class="fas fa-lock"></i>
-                    <input type="password" id="password" name="password" placeholder="Contraseña" required>
+                    <input type="password" id="password" name="password" placeholder="Password" required>
                     <i class="fas fa-eye toggle-password" id="togglePassword"></i>
                 </div>
-                <input type="submit" value="Ingresar">
+                <input type="submit" value="Login">
             </form>
         </div>
     </div>
@@ -259,7 +284,7 @@ PAGINA_LOGIN = """
 """
 
 # ==========================
-# Página de RESULTADOS
+# Página de RESULTADO
 # ==========================
 
 PAGINA_RESULTADO = """
@@ -268,13 +293,13 @@ PAGINA_RESULTADO = """
 <head>
     <title>QA Systems Manager</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-        <style>
+    <style>
         body {
             font-family: 'Segoe UI', sans-serif;
             background: #f8f9fa;
             padding: 30px;
         }
-        
+
         .header {
             position: relative;
             width: 100%;
@@ -286,34 +311,52 @@ PAGINA_RESULTADO = """
             height: auto;
             display: block;
         }
-        
-        
+
         .banner-text {
             position: absolute;
             top: 50%;
-            left: 80%;
+            left: 90%;
             transform: translate(-50%, -50%);
             color: white;
             font-size: 22px;
             font-weight: 500;
-            font-family: 'Segoe UI', sans-serif;
             white-space: nowrap;
+        }
+
+        .status-on {
+            background-color: #4caf50;
+            color: white;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
+            min-width: 40px;
+        }
+
+        .status-off {
+            background-color: #f44336;
+            color: white;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
+            min-width: 40px;
         }
 
         h1 {
             text-align: center;
             margin-bottom: 30px;
         }
-    
+
         table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
         }
-    
+
         thead th {
-            background-color: #dbe4f0; /* gris azulado */
-            color: #1a237e; /* azul fuerte */
+            background-color: #dbe4f0;
+            color: #1a237e;
             text-align: center;
             padding: 12px;
             font-weight: 600;
@@ -323,20 +366,20 @@ PAGINA_RESULTADO = """
             z-index: 1;
             transition: color 0.3s ease;
         }
-    
+
         thead th:hover {
-            color: #f57c00; /* naranja al pasar el mouse */
+            color: #f57c00;
             cursor: default;
         }
-    
+
         tbody tr:nth-child(even) {
             background-color: #f9f9f9;
         }
-    
+
         tbody tr:nth-child(odd) {
             background-color: #ffffff;
         }
-    
+
         td {
             padding: 12px;
             text-align: center;
@@ -344,14 +387,17 @@ PAGINA_RESULTADO = """
             border-bottom: 1px solid #eee;
             word-wrap: break-word;
         }
-    
+
         td.center {
             text-align: center;
         }
-    
+        
         /* Ancho reducido para columnas específicas */
+        thead th:nth-child(0),
+        tbody td:nth-child(0) { width: 100px; }
+        
         thead th:nth-child(2),
-        tbody td:nth-child(2) { width: 80px; }
+        tbody td:nth-child(2) { width: 100px; }
         
         thead th:nth-child(3),
         tbody td:nth-child(3) { width: 100px; }
@@ -361,8 +407,7 @@ PAGINA_RESULTADO = """
     
         thead th:nth-child(5),
         tbody td:nth-child(5) { width: 90px; }
-    
-        /* Badge para valores destacados */
+
         .badge {
             background-color: orange;
             color: white;
@@ -372,23 +417,33 @@ PAGINA_RESULTADO = """
             display: inline-block;
             min-width: 28px;
         }
+
+        .lupa {
+            color: #2196f3;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .lupa:hover {
+            color: orange;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <img src="/static/headerLatinia.png" alt="LATINIA System Manager QA" class="banner">
-        <div class="banner-text">Bienvenido {{ nombre }} 🎉</div>
+        <div class="banner-text">Welcome {{ nombre }} 🎉</div>
     </div>
     <table>
         <thead>
             <tr>
-                <th>Nombre</th>
-                <th>Estado</th>
-                <th>Usado por</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Used by</th>
                 <th>PowerON</th>
                 <th>PowerOFF</th>
                 <th>OperGroup</th>
-                <th>Notas</th>
+                <th>Notes</th>
                 <th>Snapshot</th>
             </tr>
         </thead>
@@ -396,6 +451,34 @@ PAGINA_RESULTADO = """
             {{ tabla|safe }}
         </tbody>
     </table>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".lupa").forEach(el => {
+            el.addEventListener("click", async function () {
+                const instanceId = this.getAttribute("data-id");
+                try {
+                    const res = await fetch(`/snapshots/${instanceId}?user={{ nombre }}&password={{ request.form.get("password") }}`);
+                    const data = await res.json();
+
+                    let mensaje = "📸 Descripciones de Snapshots:\n\n";
+                    if (data.length === 0) {
+                        mensaje += "No hay snapshots disponibles.";
+                    } else {
+                        data.forEach((snap, i) => {
+                            mensaje += `#${i + 1}: ${snap.description || "Sin descripción"}\n`;
+                        });
+                    }
+
+                    alert(mensaje);
+                } catch (err) {
+                    console.error("Error al obtener snapshots:", err);
+                    alert("Error al obtener los snapshots.");
+                }
+            });
+        });
+    });
+    </script>
 </body>
 </html>
 """
