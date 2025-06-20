@@ -1,36 +1,44 @@
-from flask import Flask, request, render_template_string, jsonify
+from flask import Flask, request, render_template_string, jsonify, session
 import requests
 import json
 
 app = Flask(__name__)
+app.secret_key = "una-clave-secreta-y-larga"
 
-# ===========================
-# UTILIDADES
-# ===========================
 def extraer_valor_tag(tags, clave):
     for tag in tags:
         if tag["key"] == clave:
             return tag["value"]
     return "-"
 
-def obtener_snapshots(instance_id, nombre, contrasena):
-    try:
-        url = f"https://awstools.corp.latiniaservices.com/api/v1/instance/{instance_id}/snapshot"
-        response = requests.get(url, auth=(nombre, contrasena))
-        if response.status_code == 200:
-            snapshots = response.json()
-            if isinstance(snapshots, list):
-                return [
-                    {
-                        "name": s.get("name", "-"),
-                        "description": s.get("description", "Sin descripción")
-                    }
-                    for s in snapshots
-                ]
-        return []
-    except Exception as e:
-        print(f"[ERROR] Snapshot error: {e}")
-        return []
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        nombre = request.form.get("user", "").strip()
+        contrasena = request.form.get("password", "").strip()
+
+        if not nombre or not contrasena:
+            return render_template_string(PAGINA_LOGIN, error=False)
+
+        try:
+            url = "https://awstools.corp.latiniaservices.com/api/v1/instance"
+            response = requests.get(url, auth=(nombre, contrasena))
+            if response.status_code == 200:
+                data = response.json()
+                tabla_html = generar_tabla(data)
+
+                session["nombre"] = nombre
+                session["contrasena"] = contrasena
+
+                return render_template_string(PAGINA_RESULTADO, nombre=nombre, tabla=tabla_html)
+            elif response.status_code == 401:
+                return render_template_string(PAGINA_LOGIN, error=True)
+            else:
+                return f"⚠️ Error al obtener datos. Código: {response.status_code}"
+        except Exception as e:
+            return f"🔌 Error de conexión: {e}"
+
+    return render_template_string(PAGINA_LOGIN, error=False)
 
 def badge(valor):
     try:
@@ -40,13 +48,13 @@ def badge(valor):
 
 def generar_tabla(data):
     filas = ""
+
     for instancia in data:
         instance_id = instancia.get("id", "-")
-        safe_id = instance_id.replace("-", "")
-
         estado_raw = instancia.get("status", {}).get("status", "-")
         estado = "ON" if estado_raw == "POWERED_ON" else "OFF" if estado_raw == "POWERED_OFF" else estado_raw
 
+        safe_id = instance_id.replace("-", "")
         lupa_html = f'<i class="fas fa-search lupa" data-id="{safe_id}" data-instance="{instance_id}"></i>'
 
         valores = [
@@ -69,44 +77,32 @@ def generar_tabla(data):
             for i, val in enumerate(valores)
         ) + "</tr>"
         filas += fila
+
     return filas
 
-# ===========================
-# RUTAS FLASK
-# ===========================
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        nombre = request.form.get("user", "").strip()
-        contrasena = request.form.get("password", "").strip()
+@app.route("/snapshots/<instance_id>")
+def obtener_snapshots(instance_id):
+    try:
+        nombre = session.get("nombre")
+        contrasena = session.get("contrasena")
 
         if not nombre or not contrasena:
-            return render_template_string(PAGINA_LOGIN, error=False)
+            return jsonify({"error": "No autorizado"}), 401
 
-        try:
-            url = "https://awstools.corp.latiniaservices.com/api/v1/instance"
-            response = requests.get(url, auth=(nombre, contrasena))
-            if response.status_code == 200:
-                data = response.json()
-                tabla_html = generar_tabla(data)
-                return render_template_string(PAGINA_RESULTADO, nombre=nombre, tabla=tabla_html, user=nombre, password=contrasena)
-            elif response.status_code == 401:
-                return render_template_string(PAGINA_LOGIN, error=True)
-            else:
-                return f"⚠️ Error al obtener datos. Código: {response.status_code}"
-        except Exception as e:
-            return f"🔌 Error de conexión: {e}"
+        url = f"https://awstools.corp.latiniaservices.com/api/v1/instance/{instance_id}/snapshot"
+        response = requests.get(url, auth=(nombre, contrasena))
+        if response.status_code == 200:
+            snapshots = response.json()
+            return jsonify(snapshots)
+        else:
+            return jsonify({"error": "No se pudieron obtener snapshots"}), response.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+@app.route("/logout")
+def logout():
+    session.clear()
     return render_template_string(PAGINA_LOGIN, error=False)
-
-@app.route("/snapshots/<instance_id>")
-def snapshots_api(instance_id):
-    user = request.args.get("user")
-    password = request.args.get("password")
-    if not user or not password:
-        return jsonify({"error": "Credenciales faltantes"}), 400
-    snapshots = obtener_snapshots(instance_id, user, password)
-    return jsonify(snapshots)
 
 
 # ==========================
@@ -320,26 +316,45 @@ PAGINA_RESULTADO = """
             color: white;
             font-size: 22px;
             font-weight: 500;
-            font-family: 'Segoe UI', sans-serif;
             white-space: nowrap;
-        
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        
+
         .avatar-icon {
             width: 40px;
             height: 40px;
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid white;
+            cursor: pointer;
         }
-        
-        .avatar-menu-container:hover .dropdown-content {
+
+        .avatar-menu-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            min-width: 100px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            z-index: 10;
+        }
+
+        .dropdown-content a {
             display: block;
+            padding: 8px;
+            color: black;
+            text-decoration: none;
         }
-        
+
         .dropdown-content a:hover {
             background-color: #f0f0f0;
         }
@@ -364,11 +379,6 @@ PAGINA_RESULTADO = """
             min-width: 40px;
         }
 
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
         table {
             width: 100%;
             border-collapse: collapse;
@@ -390,7 +400,6 @@ PAGINA_RESULTADO = """
 
         thead th:hover {
             color: #f57c00;
-            cursor: default;
         }
 
         tbody tr:nth-child(even) {
@@ -408,26 +417,6 @@ PAGINA_RESULTADO = """
             border-bottom: 1px solid #eee;
             word-wrap: break-word;
         }
-
-        td.center {
-            text-align: center;
-        }
-        
-        /* Ancho reducido para columnas específicas */
-        thead th:nth-child(0),
-        tbody td:nth-child(0) { width: 100px; }
-        
-        thead th:nth-child(2),
-        tbody td:nth-child(2) { width: 100px; }
-        
-        thead th:nth-child(3),
-        tbody td:nth-child(3) { width: 100px; }
-    
-        thead th:nth-child(4),
-        tbody td:nth-child(4) { width: 90px; }
-    
-        thead th:nth-child(5),
-        tbody td:nth-child(5) { width: 90px; }
 
         .badge {
             background-color: orange;
@@ -453,18 +442,19 @@ PAGINA_RESULTADO = """
 </head>
 <body>
     <div class="header">
-    <img src="/static/headerLatinia.png" alt="LATINIA System Manager QA" class="banner">
-    <div class="banner-text">
-        Welcome {{ nombre }}
-        <div class="avatar-menu-container" style="position: relative; display: inline-block;">
-            <img src="https://preview.redd.it/msn-avatars-of-all-colors-v0-h70w8hxd5uha1.png?width=640&crop=smart&auto=webp&s=746b504acc441e9828a6fca05bcd9ad59ac7d210" 
-                 alt="avatar" class="avatar-icon" id="avatarBtn" style="cursor:pointer;">
-            <div id="avatarDropdown" class="dropdown-content" style="display:none; position: absolute; right: 0; background: white; border: 1px solid #ccc; border-radius: 6px; min-width: 120px; box-shadow: 0 2px 5px rgba(0,0,0,0.15); z-index: 10;">
-                <a href="#" id="logoutBtn" style="display:block; padding: 8px 12px; color: black; text-decoration: none;">Cerrar sesión</a>
+        <img src="/static/headerLatinia.png" alt="LATINIA System Manager QA" class="banner">
+        <div class="banner-text">
+            Welcome {{ nombre }}
+            <div class="avatar-menu-container">
+                <img src="https://preview.redd.it/msn-avatars-of-all-colors-v0-h70w8hxd5uha1.png?width=640&crop=smart&auto=webp&s=746b504acc441e9828a6fca05bcd9ad59ac7d210"
+                     alt="avatar" class="avatar-icon" id="avatarBtn">
+                <div id="avatarDropdown" class="dropdown-content">
+                    <a href="#" id="logoutBtn">LogOut</a>
+                </div>
             </div>
         </div>
     </div>
-</div>
+
     <table>
         <thead>
             <tr>
@@ -484,56 +474,62 @@ PAGINA_RESULTADO = """
     </table>
 
     <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        document.querySelectorAll(".lupa").forEach(el => {
-            el.addEventListener("click", async function () {
-                const instanceId = this.getAttribute("data-id");
-                try {
-                    const res = await fetch(`/snapshots/${instanceId}?user={{ nombre }}&password={{ request.form.get("password") }}`);
-                    const data = await res.json();
+    document.addEventListener("DOMContentLoaded", () => {
+        const lupas = document.querySelectorAll(".lupa");
+        console.log("🔍 Se encontraron", lupas.length, "iconos lupa");
 
-                    let mensaje = "📸 Descripciones de Snapshots:\n\n";
-                    if (data.length === 0) {
+        lupas.forEach(el => {
+            el.addEventListener("click", async function () {
+                const instanceId = this.getAttribute("data-instance");
+                console.log("📦 Instance ID:", instanceId);
+
+                if (!instanceId) {
+                    alert("⚠️ ID de instancia no disponible.");
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`/snapshots/${instanceId}`);
+                    const data = await res.json();
+                    console.log("📥 Snapshots recibidos:", data);
+
+                    let mensaje = "📸 Descripciones de Snapshots:\\n\\n";
+                    if (Array.isArray(data) && data.length === 0) {
                         mensaje += "No hay snapshots disponibles.";
-                    } else {
+                    } else if (Array.isArray(data)) {
                         data.forEach((snap, i) => {
-                            mensaje += `#${i + 1}: ${snap.description || "Sin descripción"}\n`;
+                            mensaje += "#" + (i + 1) + ": " + (snap.name || "Sin nombre") + " - " + (snap.description || "Sin descripción") + "\\n";
                         });
+                    } else {
+                        mensaje = "⚠️ Error: " + (data.error || "Respuesta inesperada.");
                     }
 
                     alert(mensaje);
                 } catch (err) {
-                    console.error("Error al obtener snapshots:", err);
-                    alert("Error al obtener los snapshots.");
+                    console.error("❌ Error al obtener snapshots:", err);
+                    alert("⚠️ Error al obtener los snapshots.");
                 }
             });
         });
-    });
-    </script>
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const avatarBtn = document.getElementById("avatarBtn");
-            const dropdown = document.getElementById("avatarDropdown");
-            const logoutBtn = document.getElementById("logoutBtn");
-    
-            // Alternar menú al hacer clic en el avatar
-            avatarBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-            });
-    
-            // Cerrar menú si se clickea afuera
-            document.addEventListener("click", () => {
-                dropdown.style.display = "none";
-            });
-    
-            // Acción de cerrar sesión
-            logoutBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                // Aquí rediriges a la página de login
-                window.location.href = "/";
-            });
+
+        const avatarBtn = document.getElementById("avatarBtn");
+        const dropdown = document.getElementById("avatarDropdown");
+        const logoutBtn = document.getElementById("logoutBtn");
+
+        avatarBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
         });
+
+        document.addEventListener("click", () => {
+            dropdown.style.display = "none";
+        });
+
+        logoutBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.location.href = "/logout";
+        });
+    });
     </script>
 </body>
 </html>
