@@ -317,10 +317,12 @@ PAGINA_RESULTADO = """
             color: white;
             font-size: 22px;
             font-weight: 500;
+            font-family: 'Segoe UI', sans-serif;
             white-space: nowrap;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 14px;
+            z-index: 1;
         }
 
         .avatar-icon {
@@ -354,6 +356,7 @@ PAGINA_RESULTADO = """
             padding: 8px;
             color: black;
             text-decoration: none;
+            font-size: 14px;
         }
 
         .dropdown-content a:hover {
@@ -401,6 +404,7 @@ PAGINA_RESULTADO = """
 
         thead th:hover {
             color: #f57c00;
+            cursor: default;
         }
 
         tbody tr:nth-child(even) {
@@ -417,6 +421,10 @@ PAGINA_RESULTADO = """
             color: #333;
             border-bottom: 1px solid #eee;
             word-wrap: break-word;
+        }
+
+        td.center {
+            text-align: center;
         }
 
         .badge {
@@ -439,6 +447,22 @@ PAGINA_RESULTADO = """
         .lupa:hover {
             color: #f57c00;
         }
+
+        .refresh-btn {
+            font-size: 20px;
+            color: white;
+            cursor: pointer;
+            background-color: #1a237e;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background-color: #1976d2;
+        }
     </style>
 </head>
 <body>
@@ -446,6 +470,7 @@ PAGINA_RESULTADO = """
         <img src="/static/headerLatinia.png" alt="LATINIA System Manager QA" class="banner">
         <div class="banner-text">
             Welcome {{ nombre }}
+            <button class="refresh-btn" onclick="location.reload()">🔄</button>
             <div class="avatar-menu-container">
                 <img src="https://preview.redd.it/msn-avatars-of-all-colors-v0-h70w8hxd5uha1.png?width=640&crop=smart&auto=webp&s=746b504acc441e9828a6fca05bcd9ad59ac7d210"
                      alt="avatar" class="avatar-icon" id="avatarBtn">
@@ -474,88 +499,82 @@ PAGINA_RESULTADO = """
         </tbody>
     </table>
 
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
     <script>
     document.addEventListener("DOMContentLoaded", () => {
         const lupas = document.querySelectorAll(".lupa");
         console.log("🔍 Se encontraron", lupas.length, "iconos lupa");
-    
+
         lupas.forEach(el => {
             el.addEventListener("click", async function () {
                 const instanceId = this.getAttribute("data-instance");
                 console.log("📦 Instance ID:", instanceId);
-    
+
                 if (!instanceId) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'ID no disponible',
-                        text: '⚠️ ID de instancia no disponible.',
-                        confirmButtonText: 'Cerrar'
-                    });
+                    alert("⚠️ ID de instancia no disponible.");
                     return;
                 }
-    
+
+                Swal.fire({
+                    title: 'Loading Snapshots...',
+                    text: 'Please wait while we fetch the snapshot data.',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
                 try {
                     const res = await fetch(`/snapshots/${instanceId}`);
                     const data = await res.json();
                     console.log("📥 Snapshots recibidos:", data);
-    
+
+                    Swal.close();
+
                     let mensaje = "";
                     if (Array.isArray(data) && data.length === 0) {
-                        mensaje = "No hay snapshots disponibles.";
+                        mensaje = "No snapshots available.";
                     } else if (Array.isArray(data)) {
-                        mensaje = data.map((snap, i) => {
-                            return `#${i + 1}: ${snap.name || "Sin nombre"} - ${snap.description || "Sin descripción"}`;
-                        }).join("<br>");
+                        data.forEach((snap, i) => {
+                            mensaje += `<strong>#${i + 1}: ${snap.name || "Unnamed"}</strong><br>${snap.description || "No description"}<br><br>`;
+                        });
                     } else {
-                        mensaje = "⚠️ Error: " + (data.error || "Respuesta inesperada.");
+                        mensaje = `<em>Error:</em> ${data.error || "Unexpected response."}`;
                     }
-    
+
                     Swal.fire({
                         title: '📸 Snapshots',
-                        html: `<div style="text-align:left;">${mensaje}</div>`,
+                        html: mensaje,
                         icon: 'info',
-                        confirmButtonText: 'Cerrar',
+                        confirmButtonText: 'Close',
                         customClass: {
                             popup: 'swal2-custom-popup'
                         }
                     });
                 } catch (err) {
                     console.error("❌ Error al obtener snapshots:", err);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: '⚠️ Error al obtener los snapshots.',
-                        confirmButtonText: 'Cerrar'
-                    });
+                    Swal.close();
+                    Swal.fire("Error", "Failed to retrieve snapshot data.", "error");
                 }
             });
         });
-    
-        // Avatar dropdown
+
         const avatarBtn = document.getElementById("avatarBtn");
         const dropdown = document.getElementById("avatarDropdown");
         const logoutBtn = document.getElementById("logoutBtn");
-    
-        if (avatarBtn && dropdown && logoutBtn) {
-            avatarBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-            });
-    
-            document.addEventListener("click", () => {
-                dropdown.style.display = "none";
-            });
-    
-            logoutBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                window.location.href = "/logout";
-            });
-        } else {
-            console.warn("⚠️ Elementos del avatar no encontrados");
-        }
+
+        avatarBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+        });
+
+        document.addEventListener("click", () => {
+            dropdown.style.display = "none";
+        });
+
+        logoutBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.location.href = "/logout";
+        });
     });
     </script>
 </body>
