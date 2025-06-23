@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, jsonify, session
+from flask import Flask, request, render_template_string, jsonify, session, redirect, url_for
 import requests
 import json
 
@@ -48,6 +48,9 @@ def badge(valor):
 
 def generar_tabla(data):
     filas = ""
+
+    # Ya no ordenamos por name
+    # data = sorted(data, key=lambda x: x.get("name", "").lower())
 
     for instancia in data:
         instance_id = instancia.get("id", "-")
@@ -102,8 +105,7 @@ def obtener_snapshots(instance_id):
 @app.route("/logout")
 def logout():
     session.clear()
-    return render_template_string(PAGINA_LOGIN, error=False)
-
+    return redirect(url_for("index"))
 
 # ==========================
 # Página de LOGIN
@@ -231,6 +233,22 @@ PAGINA_LOGIN = """
         input[type="submit"]:hover {
             background: #1976d2;
         }
+        
+        th {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        
+        th::-webkit-inner-spin-button,
+        th::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        th#sort-name::after {
+        content: none !important;
+        }
     </style>
 </head>
 <body>
@@ -317,7 +335,6 @@ PAGINA_RESULTADO = """
             color: white;
             font-size: 22px;
             font-weight: 500;
-            font-family: 'Segoe UI', sans-serif;
             white-space: nowrap;
             display: flex;
             align-items: center;
@@ -400,11 +417,10 @@ PAGINA_RESULTADO = """
             top: 0;
             z-index: 1;
             transition: color 0.3s ease;
-        }
-
-        thead th:hover {
-            color: #f57c00;
-            cursor: default;
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            background-image: none !important;
         }
 
         tbody tr:nth-child(even) {
@@ -463,6 +479,19 @@ PAGINA_RESULTADO = """
         .refresh-btn:hover {
             background-color: #1976d2;
         }
+
+        .sortable-header {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        thead th:hover {
+            color: #f57c00 !important;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -484,7 +513,11 @@ PAGINA_RESULTADO = """
     <table>
         <thead>
             <tr>
-                <th>Name</th>
+                <th id="sort-name">
+                    <div class="sortable-header">
+                        Name <i class="fas fa-sort" id="sort-icon"></i>
+                    </div>
+                </th>
                 <th>Status</th>
                 <th>Used by</th>
                 <th>PowerON</th>
@@ -500,86 +533,120 @@ PAGINA_RESULTADO = """
     </table>
 
     <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const lupas = document.querySelectorAll(".lupa");
-        console.log("🔍 Se encontraron", lupas.length, "iconos lupa");
+        document.addEventListener("DOMContentLoaded", () => {
+            const tbody = document.querySelector("tbody");
+            const originalRows = Array.from(tbody.querySelectorAll("tr")); // original order
+            const sortNameHeader = document.querySelector(".sortable-header");
+            const sortIcon = document.getElementById("sort-icon");
 
-        lupas.forEach(el => {
-            el.addEventListener("click", async function () {
-                const instanceId = this.getAttribute("data-instance");
-                console.log("📦 Instance ID:", instanceId);
+            let sortedState = null;
 
-                if (!instanceId) {
-                    alert("⚠️ ID de instancia no disponible.");
-                    return;
+            sortNameHeader.addEventListener("click", () => {
+                let rowsToRender;
+
+                if (sortedState === null) {
+                    sortedState = true;
+                    rowsToRender = [...originalRows].sort((a, b) => {
+                        const aText = a.children[0].innerText.toLowerCase();
+                        const bText = b.children[0].innerText.toLowerCase();
+                        return aText.localeCompare(bText);
+                    });
+                } else if (sortedState === true) {
+                    sortedState = false;
+                    rowsToRender = [...originalRows].sort((a, b) => {
+                        const aText = a.children[0].innerText.toLowerCase();
+                        const bText = b.children[0].innerText.toLowerCase();
+                        return bText.localeCompare(aText);
+                    });
+                } else {
+                    sortedState = null;
+                    rowsToRender = [...originalRows];
                 }
 
-                Swal.fire({
-                    title: 'Loading Snapshots...',
-                    text: 'Please wait while we fetch the snapshot data.',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
+                tbody.innerHTML = "";
+                rowsToRender.forEach(row => tbody.appendChild(row));
 
-                try {
-                    const res = await fetch(`/snapshots/${instanceId}`);
-                    const data = await res.json();
-                    console.log("📥 Snapshots recibidos:", data);
-
-                    Swal.close();
-
-                    let mensaje = "";
-                    if (Array.isArray(data) && data.length === 0) {
-                        mensaje = "No snapshots available.";
-                    } else if (Array.isArray(data)) {
-                        data.forEach((snap, i) => {
-                            mensaje += `<strong>#${i + 1}: ${snap.name || "Unnamed"}</strong><br>${snap.description || "No description"}<br><br>`;
-                        });
-                    } else {
-                        mensaje = `<em>Error:</em> ${data.error || "Unexpected response."}`;
-                    }
-
-                    Swal.fire({
-                        title: '📸 Snapshots',
-                        html: mensaje,
-                        icon: 'info',
-                        confirmButtonText: 'Close',
-                        customClass: {
-                            popup: 'swal2-custom-popup'
-                        }
-                    });
-                } catch (err) {
-                    console.error("❌ Error al obtener snapshots:", err);
-                    Swal.close();
-                    Swal.fire("Error", "Failed to retrieve snapshot data.", "error");
+                if (sortedState === true) {
+                    sortIcon.className = "fas fa-sort-alpha-up";
+                } else if (sortedState === false) {
+                    sortIcon.className = "fas fa-sort-alpha-down";
+                } else {
+                    sortIcon.className = "fas fa-sort";
                 }
             });
-        });
 
-        const avatarBtn = document.getElementById("avatarBtn");
-        const dropdown = document.getElementById("avatarDropdown");
-        const logoutBtn = document.getElementById("logoutBtn");
+            // Logout
+            const avatarBtn = document.getElementById("avatarBtn");
+            const dropdown = document.getElementById("avatarDropdown");
+            const logoutBtn = document.getElementById("logoutBtn");
 
-        avatarBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-        });
+            avatarBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+            });
 
-        document.addEventListener("click", () => {
-            dropdown.style.display = "none";
-        });
+            document.addEventListener("click", () => {
+                dropdown.style.display = "none";
+            });
 
-        logoutBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            window.location.href = "/logout";
+            logoutBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                window.location.href = "/logout";
+            });
+
+            // Snapshots con loading
+            document.querySelectorAll(".lupa").forEach(el => {
+                el.addEventListener("click", async function () {
+                    const instanceId = this.getAttribute("data-instance");
+                    if (!instanceId) return;
+
+                    Swal.fire({
+                        title: 'Loading Snapshots...',
+                        html: 'Please wait while we retrieve the data.',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
+
+                    try {
+                        const res = await fetch(`/snapshots/${instanceId}`);
+                        const data = await res.json();
+                        let mensaje = "";
+
+                        if (Array.isArray(data) && data.length === 0) {
+                            mensaje = "<i>No snapshots available.</i>";
+                        } else if (Array.isArray(data)) {
+                            mensaje = data.map((snap, i) => {
+                                const name = snap.name || "Unnamed";
+                                const desc = snap.description || "No description";
+                                return `<strong>#${i + 1}: ${name}</strong><br>${desc}`;
+                            }).join("<br><br>");
+                        } else {
+                            mensaje = data.error || "Unexpected response.";
+                        }
+
+                        Swal.fire({
+                            title: '📸 Snapshots',
+                            html: `<div style="text-align:left;">${mensaje}</div>`,
+                            icon: 'info',
+                            confirmButtonText: 'Close'
+                        });
+
+                    } catch (err) {
+                        console.error("❌ Snapshot error:", err);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Failed to retrieve snapshots.'
+                        });
+                    }
+                });
+            });
         });
-    });
     </script>
 </body>
 </html>
 """
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
