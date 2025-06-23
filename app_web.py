@@ -289,6 +289,7 @@ PAGINA_RESULTADO = """
 <head>
     <title>QA Systems Manager</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
             font-family: 'Segoe UI', sans-serif;
@@ -473,62 +474,88 @@ PAGINA_RESULTADO = """
         </tbody>
     </table>
 
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <script>
     document.addEventListener("DOMContentLoaded", () => {
         const lupas = document.querySelectorAll(".lupa");
         console.log("🔍 Se encontraron", lupas.length, "iconos lupa");
-
+    
         lupas.forEach(el => {
             el.addEventListener("click", async function () {
                 const instanceId = this.getAttribute("data-instance");
                 console.log("📦 Instance ID:", instanceId);
-
+    
                 if (!instanceId) {
-                    alert("⚠️ ID de instancia no disponible.");
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ID no disponible',
+                        text: '⚠️ ID de instancia no disponible.',
+                        confirmButtonText: 'Cerrar'
+                    });
                     return;
                 }
-
+    
                 try {
                     const res = await fetch(`/snapshots/${instanceId}`);
                     const data = await res.json();
                     console.log("📥 Snapshots recibidos:", data);
-
-                    let mensaje = "📸 Descripciones de Snapshots:\\n\\n";
+    
+                    let mensaje = "";
                     if (Array.isArray(data) && data.length === 0) {
-                        mensaje += "No hay snapshots disponibles.";
+                        mensaje = "No hay snapshots disponibles.";
                     } else if (Array.isArray(data)) {
-                        data.forEach((snap, i) => {
-                            mensaje += "#" + (i + 1) + ": " + (snap.name || "Sin nombre") + " - " + (snap.description || "Sin descripción") + "\\n";
-                        });
+                        mensaje = data.map((snap, i) => {
+                            return `#${i + 1}: ${snap.name || "Sin nombre"} - ${snap.description || "Sin descripción"}`;
+                        }).join("<br>");
                     } else {
                         mensaje = "⚠️ Error: " + (data.error || "Respuesta inesperada.");
                     }
-
-                    alert(mensaje);
+    
+                    Swal.fire({
+                        title: '📸 Snapshots',
+                        html: `<div style="text-align:left;">${mensaje}</div>`,
+                        icon: 'info',
+                        confirmButtonText: 'Cerrar',
+                        customClass: {
+                            popup: 'swal2-custom-popup'
+                        }
+                    });
                 } catch (err) {
                     console.error("❌ Error al obtener snapshots:", err);
-                    alert("⚠️ Error al obtener los snapshots.");
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: '⚠️ Error al obtener los snapshots.',
+                        confirmButtonText: 'Cerrar'
+                    });
                 }
             });
         });
-
+    
+        // Avatar dropdown
         const avatarBtn = document.getElementById("avatarBtn");
         const dropdown = document.getElementById("avatarDropdown");
         const logoutBtn = document.getElementById("logoutBtn");
-
-        avatarBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-        });
-
-        document.addEventListener("click", () => {
-            dropdown.style.display = "none";
-        });
-
-        logoutBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            window.location.href = "/logout";
-        });
+    
+        if (avatarBtn && dropdown && logoutBtn) {
+            avatarBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+            });
+    
+            document.addEventListener("click", () => {
+                dropdown.style.display = "none";
+            });
+    
+            logoutBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                window.location.href = "/logout";
+            });
+        } else {
+            console.warn("⚠️ Elementos del avatar no encontrados");
+        }
     });
     </script>
 </body>
