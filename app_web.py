@@ -417,10 +417,11 @@ PAGINA_RESULTADO = """
             top: 0;
             z-index: 1;
             transition: color 0.3s ease;
-            appearance: none !important;
-            -webkit-appearance: none !important;
-            -moz-appearance: none !important;
-            background-image: none !important;
+        }
+
+        thead th:hover {
+            color: #f57c00;
+            cursor: pointer;
         }
 
         tbody tr:nth-child(even) {
@@ -484,13 +485,6 @@ PAGINA_RESULTADO = """
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        thead th:hover {
-            color: #f57c00 !important;
-            cursor: pointer;
         }
     </style>
 </head>
@@ -513,13 +507,9 @@ PAGINA_RESULTADO = """
     <table>
         <thead>
             <tr>
-                <th id="sort-name">
-                    <div class="sortable-header">
-                        Name <i class="fas fa-sort" id="sort-icon"></i>
-                    </div>
-                </th>
-                <th>Status</th>
-                <th>Used by</th>
+                <th id="sort-name"><div class="sortable-header">Name <i class="fas fa-sort" id="sort-icon-name"></i></div></th>
+                <th id="sort-status"><div class="sortable-header">Status <i class="fas fa-sort" id="sort-icon-status"></i></div></th>
+                <th id="sort-usedby"><div class="sortable-header">Used by <i class="fas fa-sort" id="sort-icon-usedby"></i></div></th>
                 <th>PowerON</th>
                 <th>PowerOFF</th>
                 <th>OperGroup</th>
@@ -533,116 +523,140 @@ PAGINA_RESULTADO = """
     </table>
 
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const tbody = document.querySelector("tbody");
-            const originalRows = Array.from(tbody.querySelectorAll("tr")); // original order
-            const sortNameHeader = document.querySelector(".sortable-header");
-            const sortIcon = document.getElementById("sort-icon");
-
-            let sortedState = null;
-
-            sortNameHeader.addEventListener("click", () => {
-                let rowsToRender;
-
-                if (sortedState === null) {
-                    sortedState = true;
-                    rowsToRender = [...originalRows].sort((a, b) => {
-                        const aText = a.children[0].innerText.toLowerCase();
-                        const bText = b.children[0].innerText.toLowerCase();
-                        return aText.localeCompare(bText);
-                    });
-                } else if (sortedState === true) {
-                    sortedState = false;
-                    rowsToRender = [...originalRows].sort((a, b) => {
-                        const aText = a.children[0].innerText.toLowerCase();
-                        const bText = b.children[0].innerText.toLowerCase();
-                        return bText.localeCompare(aText);
-                    });
-                } else {
-                    sortedState = null;
-                    rowsToRender = [...originalRows];
+    document.addEventListener("DOMContentLoaded", () => {
+        const tbody = document.querySelector("tbody");
+        const originalRows = Array.from(tbody.querySelectorAll("tr"));
+    
+        const sortStates = {
+            name: null,
+            status: null,
+            usedby: null
+        };
+    
+        const headers = {
+            name: document.querySelector("#sort-name"),
+            status: document.querySelector("#sort-status"),
+            usedby: document.querySelector("#sort-usedby")
+        };
+    
+        const icons = {
+            name: document.querySelector("#sort-icon-name"),
+            status: document.querySelector("#sort-icon-status"),
+            usedby: document.querySelector("#sort-icon-usedby")
+        };
+    
+        function resetSortStates(except) {
+            for (let key in sortStates) {
+                if (key !== except) {
+                    sortStates[key] = null;
+                    icons[key].className = "fas fa-sort";
                 }
-
-                tbody.innerHTML = "";
-                rowsToRender.forEach(row => tbody.appendChild(row));
-
-                if (sortedState === true) {
-                    sortIcon.className = "fas fa-sort-alpha-up";
-                } else if (sortedState === false) {
-                    sortIcon.className = "fas fa-sort-alpha-down";
-                } else {
-                    sortIcon.className = "fas fa-sort";
-                }
-            });
-
-            // Logout
-            const avatarBtn = document.getElementById("avatarBtn");
-            const dropdown = document.getElementById("avatarDropdown");
-            const logoutBtn = document.getElementById("logoutBtn");
-
-            avatarBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-            });
-
-            document.addEventListener("click", () => {
-                dropdown.style.display = "none";
-            });
-
-            logoutBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                window.location.href = "/logout";
-            });
-
-            // Snapshots con loading
-            document.querySelectorAll(".lupa").forEach(el => {
-                el.addEventListener("click", async function () {
-                    const instanceId = this.getAttribute("data-instance");
-                    if (!instanceId) return;
-
-                    Swal.fire({
-                        title: 'Loading Snapshots...',
-                        html: 'Please wait while we retrieve the data.',
-                        allowOutsideClick: false,
-                        didOpen: () => Swal.showLoading()
-                    });
-
-                    try {
-                        const res = await fetch(`/snapshots/${instanceId}`);
-                        const data = await res.json();
-                        let mensaje = "";
-
-                        if (Array.isArray(data) && data.length === 0) {
-                            mensaje = "<i>No snapshots available.</i>";
-                        } else if (Array.isArray(data)) {
-                            mensaje = data.map((snap, i) => {
-                                const name = snap.name || "Unnamed";
-                                const desc = snap.description || "No description";
-                                return `<strong>#${i + 1}: ${name}</strong><br>${desc}`;
-                            }).join("<br><br>");
-                        } else {
-                            mensaje = data.error || "Unexpected response.";
-                        }
-
-                        Swal.fire({
-                            title: '📸 Snapshots',
-                            html: `<div style="text-align:left;">${mensaje}</div>`,
-                            icon: 'info',
-                            confirmButtonText: 'Close'
-                        });
-
-                    } catch (err) {
-                        console.error("❌ Snapshot error:", err);
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: 'Failed to retrieve snapshots.'
-                        });
-                    }
+            }
+        }
+    
+        function sortTable(column, getValueFn) {
+            let rowsToRender;
+            if (sortStates[column] === null) {
+                sortStates[column] = true;
+                rowsToRender = [...originalRows].sort((a, b) => getValueFn(a).localeCompare(getValueFn(b)));
+                icons[column].className = "fas fa-sort-alpha-up";
+            } else if (sortStates[column] === true) {
+                sortStates[column] = false;
+                rowsToRender = [...originalRows].sort((a, b) => getValueFn(b).localeCompare(getValueFn(a)));
+                icons[column].className = "fas fa-sort-alpha-down";
+            } else {
+                sortStates[column] = null;
+                rowsToRender = [...originalRows];
+                icons[column].className = "fas fa-sort";
+            }
+            tbody.innerHTML = "";
+            rowsToRender.forEach(row => tbody.appendChild(row));
+        }
+    
+        headers.name.addEventListener("click", () => {
+            resetSortStates("name");
+            sortTable("name", row => row.children[0].innerText.toLowerCase());
+        });
+    
+        headers.status.addEventListener("click", () => {
+            resetSortStates("status");
+            sortTable("status", row => row.children[1].innerText.toLowerCase());
+        });
+    
+        headers.usedby.addEventListener("click", () => {
+            resetSortStates("usedby");
+            sortTable("usedby", row => row.children[2].innerText.toLowerCase());
+        });
+    
+        // Dropdown + logout
+        const avatarBtn = document.getElementById("avatarBtn");
+        const dropdown = document.getElementById("avatarDropdown");
+        const logoutBtn = document.getElementById("logoutBtn");
+    
+        avatarBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+        });
+    
+        document.addEventListener("click", () => {
+            dropdown.style.display = "none";
+        });
+    
+        logoutBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.location.href = "/logout";
+        });
+    
+        // Lupa
+        document.querySelectorAll(".lupa").forEach(el => {
+            el.addEventListener("click", async function () {
+                const instanceId = this.getAttribute("data-instance");
+                if (!instanceId) return;
+    
+                Swal.fire({
+                    title: 'Loading Snapshots...',
+                    html: 'Please wait while we retrieve the data.',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
                 });
+    
+                try {
+                    const res = await fetch(`/snapshots/${instanceId}`);
+                    const data = await res.json();
+                    let mensaje = "";
+    
+                    if (Array.isArray(data) && data.length === 0) {
+                        mensaje = "<i>No snapshots available.</i>";
+                    } else if (Array.isArray(data)) {
+                        mensaje = data.map((snap, i) => {
+                            const name = snap.name || "Unnamed";
+                            const desc = snap.description || "No description";
+                            return `<strong>#${i + 1}: ${name}</strong><br>${desc}`;
+                        }).join("<br><br>");
+                    } else {
+                        mensaje = data.error || "Unexpected response.";
+                    }
+    
+                    Swal.fire({
+                        title: '📸 Snapshots',
+                        html: `<div style="text-align:left;">${mensaje}</div>`,
+                        icon: 'info',
+                        confirmButtonText: 'Close'
+                    });
+    
+                } catch (err) {
+                    console.error("❌ Snapshot error:", err);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to retrieve snapshots.'
+                    });
+                }
             });
         });
+    });
     </script>
+
 </body>
 </html>
 """
