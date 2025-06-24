@@ -1,15 +1,19 @@
 from flask import Flask, request, render_template_string, jsonify, session, redirect, url_for
 import requests
+from datetime import datetime
 import json
+
 
 app = Flask(__name__)
 app.secret_key = "una-clave-secreta-y-larga"
+
 
 def extraer_valor_tag(tags, clave):
     for tag in tags:
         if tag["key"] == clave:
             return tag["value"]
     return "-"
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -40,17 +44,16 @@ def index():
 
     return render_template_string(PAGINA_LOGIN, error=False)
 
+
 def badge(valor):
     try:
         return f'<span class="badge">{valor}</span>' if int(valor) > 0 else valor
     except:
         return valor
 
+
 def generar_tabla(data):
     filas = ""
-
-    # Ya no ordenamos por name
-    # data = sorted(data, key=lambda x: x.get("name", "").lower())
 
     for instancia in data:
         instance_id = instancia.get("id", "-")
@@ -60,6 +63,9 @@ def generar_tabla(data):
         safe_id = instance_id.replace("-", "")
         lupa_html = f'<i class="fas fa-search lupa" data-id="{safe_id}" data-instance="{instance_id}"></i>'
 
+        launch_time_raw = instancia.get("launchTime", "-")
+        launch_time = formatear_launchtime(launch_time_raw)
+
         valores = [
             instancia.get("name", "-"),
             estado,
@@ -68,6 +74,7 @@ def generar_tabla(data):
             extraer_valor_tag(instancia.get("tags", []), "PowerOffTime"),
             extraer_valor_tag(instancia.get("tags", []), "OperGroup"),
             extraer_valor_tag(instancia.get("tags", []), "Notes"),
+            launch_time,
             lupa_html
         ]
 
@@ -75,13 +82,24 @@ def generar_tabla(data):
             f'<td class="center"><span class="status-on">ON</span></td>' if i == 1 and val == "ON" else
             f'<td class="center"><span class="status-off">OFF</span></td>' if i == 1 and val == "OFF" else
             f'<td class="center">{badge(val)}</td>' if i in [3, 4] else
-            f'<td class="center">{val}</td>' if i in [2, 5] else
+            f'<td class="center">{val}</td>' if i in [2, 5, 7] else
             f'<td>{val}</td>'
             for i, val in enumerate(valores)
         ) + "</tr>"
         filas += fila
 
     return filas
+
+def formatear_launchtime(timestamp):
+    try:
+        print("DEBUG formatear_launchtime input:", timestamp, type(timestamp))  # debug
+        # Si no es número, intenta convertir
+        ts_float = float(timestamp)
+        dt = datetime.fromtimestamp(ts_float / 1000)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        print("Error formatear_launchtime:", e)
+        return "-"
 
 @app.route("/snapshots/<instance_id>")
 def obtener_snapshots(instance_id):
@@ -102,10 +120,12 @@ def obtener_snapshots(instance_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("index"))
+
 
 # ==========================
 # Página de LOGIN
@@ -233,19 +253,19 @@ PAGINA_LOGIN = """
         input[type="submit"]:hover {
             background: #1976d2;
         }
-        
+
         th {
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
         }
-        
+
         th::-webkit-inner-spin-button,
         th::-webkit-outer-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
-        
+
         th#sort-name::after {
         content: none !important;
         }
@@ -520,6 +540,7 @@ PAGINA_RESULTADO = """
                 <th id="sort-poweroff"><div class="sortable-header">PowerOFF <i class="fas fa-sort" id="sort-poweroff-icon"></i></div></th>
                 <th id="sort-opergroup"><div class="sortable-header">OperGroup <i class="fas fa-sort" id="sort-opergroup-icon"></i></div></th>
                 <th>Notes</th>
+                <th id="sort-launchtime"><div class="sortable-header">Last Ussage Time <i class="fas fa-sort" id="sort-launchtime-icon"></i></div></th>
                 <th>Snapshot</th>
             </tr>
         </thead>
@@ -529,50 +550,61 @@ PAGINA_RESULTADO = """
     </table>
 
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const tbody = document.querySelector("tbody");
-            const originalRows = Array.from(tbody.querySelectorAll("tr"));
+    document.addEventListener("DOMContentLoaded", () => {
+        const tbody = document.querySelector("tbody");
+        const originalRows = Array.from(tbody.querySelectorAll("tr"));
 
-            const sortHandlers = [
-                { id: "sort-name", index: 0 },
-                { id: "sort-status", index: 1 },
-                { id: "sort-usedby", index: 2 },
-                { id: "sort-poweron", index: 3 },
-                { id: "sort-poweroff", index: 4 },
-                { id: "sort-opergroup", index: 5 },
-            ];
+        const sortHandlers = [
+            { id: "sort-name", index: 0 },
+            { id: "sort-status", index: 1 },
+            { id: "sort-usedby", index: 2 },
+            { id: "sort-poweron", index: 3 },
+            { id: "sort-poweroff", index: 4 },
+            { id: "sort-opergroup", index: 5 },
+            { id: "sort-launchtime", index: 7 },  // Launch Time
+        ];
 
-            sortHandlers.forEach(({ id, index }) => {
-                const header = document.getElementById(id);
-                const icon = document.getElementById(`${id}-icon`);
-                let state = null;
+        sortHandlers.forEach(({ id, index }) => {
+            const header = document.getElementById(id);
+            const icon = document.getElementById(`${id}-icon`);
+            let state = null;
 
-                header.addEventListener("click", () => {
-                    let sortedRows;
-                    if (state === null) {
-                        state = true;
-                        sortedRows = [...originalRows].sort((a, b) => {
-                            const aText = a.children[index].innerText.toLowerCase();
-                            const bText = b.children[index].innerText.toLowerCase();
-                            return aText.localeCompare(bText);
-                        });
-                    } else if (state === true) {
-                        state = false;
-                        sortedRows = [...originalRows].sort((a, b) => {
-                            const aText = a.children[index].innerText.toLowerCase();
-                            const bText = b.children[index].innerText.toLowerCase();
-                            return bText.localeCompare(aText);
-                        });
-                    } else {
-                        state = null;
-                        sortedRows = [...originalRows];
+            header.addEventListener("click", () => {
+                let sortedRows;
+
+                const getValue = (row) => {
+                    const text = row.children[index].innerText.trim();
+                    if (id === "sort-launchtime") {
+                        const time = new Date(text).getTime();
+                        return isNaN(time) ? 0 : time;
                     }
-                    tbody.innerHTML = "";
-                    sortedRows.forEach(row => tbody.appendChild(row));
-                    icon.className = state === true ? "fas fa-sort-alpha-up" : state === false ? "fas fa-sort-alpha-down" : "fas fa-sort";
-                });
-            });
+                    return text.toLowerCase();
+                };
 
+                if (state === null || state === false) {
+                    // Ascendente
+                    state = true;
+                    sortedRows = [...originalRows].sort((a, b) => {
+                        const valA = getValue(a);
+                        const valB = getValue(b);
+                        return valA > valB ? 1 : valA < valB ? -1 : 0;
+                    });
+                } else {
+                    // Descendente
+                    state = false;
+                    sortedRows = [...originalRows].sort((a, b) => {
+                        const valA = getValue(a);
+                        const valB = getValue(b);
+                        return valA < valB ? 1 : valA > valB ? -1 : 0;
+                    });
+                }
+
+                tbody.innerHTML = "";
+                sortedRows.forEach(row => tbody.appendChild(row));
+
+                icon.className = state === true ? "fas fa-sort-alpha-up" : "fas fa-sort-alpha-down";
+            });
+        });
             document.querySelectorAll(".lupa").forEach(el => {
                 el.addEventListener("click", async function () {
                     const instanceId = this.getAttribute("data-instance");
@@ -642,7 +674,6 @@ PAGINA_RESULTADO = """
 </body>
 </html>
 """
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
