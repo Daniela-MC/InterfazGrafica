@@ -501,7 +501,7 @@ PAGINA_RESULTADO = """
             Welcome {{ nombre }}
             <button class="refresh-btn" onclick="location.reload()">🔄</button>
             <div class="avatar-menu-container">
-                <img src="https://preview.redd.it/msn-avatars-of-all-colors-v0-h70w8hxd5uha1.png?width=640&crop=smart&auto=webp&s=746b504acc441e9828a6fca05bcd9ad59ac7d210"
+                <img src="https://images.creativefabrica.com/products/thumbnails/2024/05/14/drj74fxzu/2gSugo57MBL70V0iAIBZ6g0pyl6.png"
                      alt="avatar" class="avatar-icon" id="avatarBtn">
                 <div id="avatarDropdown" class="dropdown-content">
                     <a href="#" id="logoutBtn">LogOut</a>
@@ -596,7 +596,7 @@ PAGINA_RESULTADO = """
                             mensaje = data.map((snap, i) => {
                                 const name = snap.name || "Unnamed";
                                 const desc = snap.description || "No description";
-                                return `<strong>#${i + 1}: ${name}</strong><br>${desc}`;
+                                return `<strong>${i + 1}: ${name}</strong><br>${desc}`;
                             }).join("<br><br>");
                         } else {
                             mensaje = data.error || "Unexpected response.";
