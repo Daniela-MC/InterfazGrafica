@@ -417,6 +417,10 @@ PAGINA_RESULTADO = """
             top: 0;
             z-index: 1;
             transition: color 0.3s ease;
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            background-image: none !important;
         }
 
         thead th:hover {
@@ -485,6 +489,8 @@ PAGINA_RESULTADO = """
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            cursor: pointer;
+            user-select: none;
         }
     </style>
 </head>
@@ -507,12 +513,12 @@ PAGINA_RESULTADO = """
     <table>
         <thead>
             <tr>
-                <th id="sort-name"><div class="sortable-header">Name <i class="fas fa-sort" id="sort-icon-name"></i></div></th>
-                <th id="sort-status"><div class="sortable-header">Status <i class="fas fa-sort" id="sort-icon-status"></i></div></th>
-                <th id="sort-usedby"><div class="sortable-header">Used by <i class="fas fa-sort" id="sort-icon-usedby"></i></div></th>
-                <th>PowerON</th>
-                <th>PowerOFF</th>
-                <th>OperGroup</th>
+                <th id="sort-name"><div class="sortable-header">Name <i class="fas fa-sort" id="sort-name-icon"></i></div></th>
+                <th id="sort-status"><div class="sortable-header">Status <i class="fas fa-sort" id="sort-status-icon"></i></div></th>
+                <th id="sort-usedby"><div class="sortable-header">Used by <i class="fas fa-sort" id="sort-usedby-icon"></i></div></th>
+                <th id="sort-poweron"><div class="sortable-header">PowerON <i class="fas fa-sort" id="sort-poweron-icon"></i></div></th>
+                <th id="sort-poweroff"><div class="sortable-header">PowerOFF <i class="fas fa-sort" id="sort-poweroff-icon"></i></div></th>
+                <th id="sort-opergroup"><div class="sortable-header">OperGroup <i class="fas fa-sort" id="sort-opergroup-icon"></i></div></th>
                 <th>Notes</th>
                 <th>Snapshot</th>
             </tr>
@@ -523,140 +529,116 @@ PAGINA_RESULTADO = """
     </table>
 
     <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const tbody = document.querySelector("tbody");
-        const originalRows = Array.from(tbody.querySelectorAll("tr"));
-    
-        const sortStates = {
-            name: null,
-            status: null,
-            usedby: null
-        };
-    
-        const headers = {
-            name: document.querySelector("#sort-name"),
-            status: document.querySelector("#sort-status"),
-            usedby: document.querySelector("#sort-usedby")
-        };
-    
-        const icons = {
-            name: document.querySelector("#sort-icon-name"),
-            status: document.querySelector("#sort-icon-status"),
-            usedby: document.querySelector("#sort-icon-usedby")
-        };
-    
-        function resetSortStates(except) {
-            for (let key in sortStates) {
-                if (key !== except) {
-                    sortStates[key] = null;
-                    icons[key].className = "fas fa-sort";
-                }
-            }
-        }
-    
-        function sortTable(column, getValueFn) {
-            let rowsToRender;
-            if (sortStates[column] === null) {
-                sortStates[column] = true;
-                rowsToRender = [...originalRows].sort((a, b) => getValueFn(a).localeCompare(getValueFn(b)));
-                icons[column].className = "fas fa-sort-alpha-up";
-            } else if (sortStates[column] === true) {
-                sortStates[column] = false;
-                rowsToRender = [...originalRows].sort((a, b) => getValueFn(b).localeCompare(getValueFn(a)));
-                icons[column].className = "fas fa-sort-alpha-down";
-            } else {
-                sortStates[column] = null;
-                rowsToRender = [...originalRows];
-                icons[column].className = "fas fa-sort";
-            }
-            tbody.innerHTML = "";
-            rowsToRender.forEach(row => tbody.appendChild(row));
-        }
-    
-        headers.name.addEventListener("click", () => {
-            resetSortStates("name");
-            sortTable("name", row => row.children[0].innerText.toLowerCase());
-        });
-    
-        headers.status.addEventListener("click", () => {
-            resetSortStates("status");
-            sortTable("status", row => row.children[1].innerText.toLowerCase());
-        });
-    
-        headers.usedby.addEventListener("click", () => {
-            resetSortStates("usedby");
-            sortTable("usedby", row => row.children[2].innerText.toLowerCase());
-        });
-    
-        // Dropdown + logout
-        const avatarBtn = document.getElementById("avatarBtn");
-        const dropdown = document.getElementById("avatarDropdown");
-        const logoutBtn = document.getElementById("logoutBtn");
-    
-        avatarBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-        });
-    
-        document.addEventListener("click", () => {
-            dropdown.style.display = "none";
-        });
-    
-        logoutBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            window.location.href = "/logout";
-        });
-    
-        // Lupa
-        document.querySelectorAll(".lupa").forEach(el => {
-            el.addEventListener("click", async function () {
-                const instanceId = this.getAttribute("data-instance");
-                if (!instanceId) return;
-    
-                Swal.fire({
-                    title: 'Loading Snapshots...',
-                    html: 'Please wait while we retrieve the data.',
-                    allowOutsideClick: false,
-                    didOpen: () => Swal.showLoading()
-                });
-    
-                try {
-                    const res = await fetch(`/snapshots/${instanceId}`);
-                    const data = await res.json();
-                    let mensaje = "";
-    
-                    if (Array.isArray(data) && data.length === 0) {
-                        mensaje = "<i>No snapshots available.</i>";
-                    } else if (Array.isArray(data)) {
-                        mensaje = data.map((snap, i) => {
-                            const name = snap.name || "Unnamed";
-                            const desc = snap.description || "No description";
-                            return `<strong>#${i + 1}: ${name}</strong><br>${desc}`;
-                        }).join("<br><br>");
+        document.addEventListener("DOMContentLoaded", () => {
+            const tbody = document.querySelector("tbody");
+            const originalRows = Array.from(tbody.querySelectorAll("tr"));
+
+            const sortHandlers = [
+                { id: "sort-name", index: 0 },
+                { id: "sort-status", index: 1 },
+                { id: "sort-usedby", index: 2 },
+                { id: "sort-poweron", index: 3 },
+                { id: "sort-poweroff", index: 4 },
+                { id: "sort-opergroup", index: 5 },
+            ];
+
+            sortHandlers.forEach(({ id, index }) => {
+                const header = document.getElementById(id);
+                const icon = document.getElementById(`${id}-icon`);
+                let state = null;
+
+                header.addEventListener("click", () => {
+                    let sortedRows;
+                    if (state === null) {
+                        state = true;
+                        sortedRows = [...originalRows].sort((a, b) => {
+                            const aText = a.children[index].innerText.toLowerCase();
+                            const bText = b.children[index].innerText.toLowerCase();
+                            return aText.localeCompare(bText);
+                        });
+                    } else if (state === true) {
+                        state = false;
+                        sortedRows = [...originalRows].sort((a, b) => {
+                            const aText = a.children[index].innerText.toLowerCase();
+                            const bText = b.children[index].innerText.toLowerCase();
+                            return bText.localeCompare(aText);
+                        });
                     } else {
-                        mensaje = data.error || "Unexpected response.";
+                        state = null;
+                        sortedRows = [...originalRows];
                     }
-    
+                    tbody.innerHTML = "";
+                    sortedRows.forEach(row => tbody.appendChild(row));
+                    icon.className = state === true ? "fas fa-sort-alpha-up" : state === false ? "fas fa-sort-alpha-down" : "fas fa-sort";
+                });
+            });
+
+            document.querySelectorAll(".lupa").forEach(el => {
+                el.addEventListener("click", async function () {
+                    const instanceId = this.getAttribute("data-instance");
+                    if (!instanceId) return;
+
                     Swal.fire({
-                        title: '📸 Snapshots',
-                        html: `<div style="text-align:left;">${mensaje}</div>`,
-                        icon: 'info',
-                        confirmButtonText: 'Close'
+                        title: 'Loading Snapshots...',
+                        html: 'Please wait while we retrieve the data.',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
                     });
-    
-                } catch (err) {
-                    console.error("❌ Snapshot error:", err);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Failed to retrieve snapshots.'
-                    });
-                }
+
+                    try {
+                        const res = await fetch(`/snapshots/${instanceId}`);
+                        const data = await res.json();
+                        let mensaje = "";
+
+                        if (Array.isArray(data) && data.length === 0) {
+                            mensaje = "<i>No snapshots available.</i>";
+                        } else if (Array.isArray(data)) {
+                            mensaje = data.map((snap, i) => {
+                                const name = snap.name || "Unnamed";
+                                const desc = snap.description || "No description";
+                                return `<strong>#${i + 1}: ${name}</strong><br>${desc}`;
+                            }).join("<br><br>");
+                        } else {
+                            mensaje = data.error || "Unexpected response.";
+                        }
+
+                        Swal.fire({
+                            title: '📸 Snapshots',
+                            html: `<div style="text-align:left;">${mensaje}</div>`,
+                            icon: 'info',
+                            confirmButtonText: 'Close'
+                        });
+
+                    } catch (err) {
+                        console.error("❌ Snapshot error:", err);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Failed to retrieve snapshots.'
+                        });
+                    }
+                });
+            });
+
+            const avatarBtn = document.getElementById("avatarBtn");
+            const dropdown = document.getElementById("avatarDropdown");
+            const logoutBtn = document.getElementById("logoutBtn");
+
+            avatarBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+            });
+
+            document.addEventListener("click", () => {
+                dropdown.style.display = "none";
+            });
+
+            logoutBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                window.location.href = "/logout";
             });
         });
-    });
     </script>
-
 </body>
 </html>
 """
